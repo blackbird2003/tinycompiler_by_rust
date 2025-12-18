@@ -109,33 +109,72 @@ Parser的作用是
 
 这里，我们使用一种实现简单、功能强大(支持任何上下文无关文法，包括歧义文法)的Earley Parser。
 
+## 理论
+
 Earley 解析器以输入位置为阶段进行工作。设输入词法单元序列为 $t_0 t_1 \ldots t_{n-1}$。对每个输入位置 $j \in [0 \ldots n]$，算法维护一个集合 $J_j$，其中的元素称为 Earley。 在任意 $J_j$ 中，相同的 Earley 项至多出现一次。
 
-每个 Task 项的形式为 $(A \to \alpha \bullet \beta,\ k)$。其中 $A \to \alpha\beta$ 是一条语法产生式，点 $\bullet$ 表示该产生式右侧中已经匹配完成的位置；$k$ 是该产生式开始匹配时的输入位置，即该非终结符 $A$ 被预测或引入时已处理的词法单元数量。
-
-在代码中， Earley 项可以表示为一个存储三个整数的 Task 结构体。为了方便，使用Vec\<Vec\<Task\>\>而不是哈希表来表示集合$ \{J_j\}_{j=0}^n $。
-
-```rust
-struct Task {
-    rule: usize,    // 语法中解析规则的索引
-    dot: usize,     // 规则中下一个符号的索引（点的位置）
-    start: usize,   // 开始此规则时已看到的词法单元数量
-}
-
-worklists: Vec<Vec<Task>> = vec![vec![Task::new(0, 0, 0)]];
-```
+每个 Earley 项的形式为 $(A \to \alpha \bullet \beta,\ k)$。其中 $A \to \alpha\beta$ 是一条语法产生式，点 $\bullet$ 表示该产生式右侧中已经匹配完成的位置；$k$ 是该产生式开始匹配时的输入位置，即该非终结符 $A$ 被预测或引入时已处理的词法单元数量。
 
 
-算法从集合 $J_0 = \{(S' \to \bullet S,\ 0)\}$ 开始，其中 $S$ 是语法的起始符号，$S'$ 是引入的人工起始符号。随后，算法按输入位置 $j = 0, 1, \ldots, n$ 依次构造各个集合 $J_j$。如果 $ (S' \to S \bullet, 0) $ 存在于集合 $ J_n $ 中，则算法成功解析了 $ n $ 个输入词法单元的序列 $ t_0t_1 \ldots t_{n-1} $，否则报告错误。
+算法从集合 $J_0 = \{(S' \to \bullet S,\ 0)\}$ 开始，其中 $S$ 是语法的起始符号，$S'$ 是引入的人工起始符号。随后，算法按输入位置 $j = 0, 1, \ldots, n$ 依次构造各个集合 $J_j$。。
 
 
 算法构造每个集合的流程如下:
 
-在固定的输入位置 $j$ 上，反复对 $J_j$ 应用以下规则，直到 $J_j$ 不再发生变化为止。
+- 遍历$J_j$的所有 Earley 项(遍历过程中,集合大小可能增长)
 
-- 若 $J_j$ 中包含一个项 $(A \to \alpha \bullet B\beta,\ k)$，其中 $B$ 是非终结符，则对每一条产生式 $B \to \gamma$，将项 $(B \to \bullet \gamma,\ j)$ 加入 $J_j$。该步骤称为预测（predict）。预测步骤不消耗输入符号，且可能触发进一步的预测。
+    - 若形如 $(A \to \alpha \bullet B\beta,\ k)$，其中 $B$ 是非终结符，则对每一条产生式 $B \to \gamma$，将项 $(B \to \bullet \gamma,\ j)$ 加入 $J_j$。该步骤称为预测（predict）。预测步骤可能会在$J_j$中添加新的Earley项，但应保证$J_j$作为集合的互异性(不会陷入无限循环)。
 
-- 若 $J_j$ 中包含一个完成项 $(B \to \gamma \bullet,\ k)$，则对集合 $J_k$ 中的每一个项 $(A \to \alpha \bullet B\beta,\ l)$，将项 $(A \to \alpha B \bullet \beta,\ l)$ 加入 $J_j$。该步骤称为完成（complete）。完成步骤不消耗输入符号。
+    - 若形如 $(A \to \alpha \bullet t\beta,\ k)$，其中 $t$ 是终结符，且 $t = t_j$，则将项 $(A \to \alpha t \bullet \beta,\ k)$ 加入 $J_{j+1}$。该步骤称为扫描（scan）。
 
-当 $J_j$ 达到闭包后，若 $j < n$，则应用扫描规则。若 $J_j$ 中包含一个项 $(A \to \alpha \bullet t\beta,\ k)$，其中 $t$ 是终结符且 $t = t_j$，则将项 $(A \to \alpha t \bullet \beta,\ k)$ 加入 $J_{j+1}$。扫描（scan）是唯一会推进输入位置的规则。
+    - 若为完成项 $(B \to \gamma \bullet,\ k)$，则对集合 $J_k$ 中的每一个项 $(A \to \alpha \bullet B\beta,\ l)$，将项 $(A \to \alpha B \bullet \beta,\ l)$ 加入 $J_j$。该步骤称为完成（complete）。
+
+
+
+如果 $ (S' \to S \bullet, 0) $ 存在于集合 $ J_n $ 中，则算法成功解析了 $ n $ 个输入词法单元的序列 $ t_0t_1 \ldots t_{n-1} $，否则报告错误。
+
+伪代码
+```
+DECLARE ARRAY S;
+
+function INIT(words)
+    S ← CREATE_ARRAY(LENGTH(words) + 1)
+    for k ← from 0 to LENGTH(words) do
+        S[k] ← EMPTY_ORDERED_SET
+
+function EARLEY_PARSE(words, grammar)
+    INIT(words)
+    ADD_TO_SET((γ → •S, 0), S[0])
+    for k ← from 0 to LENGTH(words) do
+        for each state in S[k] do  // S[k] can expand during this loop
+            if not FINISHED(state) then
+                if NEXT_ELEMENT_OF(state) is a nonterminal then
+                    PREDICTOR(state, k, grammar)         // non_terminal
+                else do
+                    SCANNER(state, k, words)             // terminal
+            else do
+                COMPLETER(state, k)
+        end
+    end
+    return chart
+
+procedure PREDICTOR((A → α•Bβ, j), k, grammar)
+    for each (B → γ) in GRAMMAR_RULES_FOR(B, grammar) do
+        ADD_TO_SET((B → •γ, k), S[k])
+    end
+
+procedure SCANNER((A → α•aβ, j), k, words)
+    if j < LENGTH(words) and a ⊂ PARTS_OF_SPEECH(words[k]) then
+        ADD_TO_SET((A → αa•β, j), S[k+1])
+    end
+
+procedure COMPLETER((B → γ•, x), k)
+    for each (A → α•Bβ, j) in S[x] do
+        ADD_TO_SET((A → αB•β, j), S[k])
+    end
+```
+
+## 实现
+
+
 
