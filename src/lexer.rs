@@ -1,214 +1,314 @@
-use std::collections::HashMap;
+use std::error::Error;
 use std::fmt;
 
+/// A token produced by the Wend lexer.
+///
+/// This struct intentionally mirrors the Python reference implementation (`lexer.py`).
+/// In particular:
+/// - `token_type` is a string like "ID", "INTEGER", "PLUS", ...
+/// - `value` is the lexeme
+/// - `lineno` is 0-based
 #[derive(Clone, PartialEq, Eq)]
-struct Token {
-    token_type: String,
-    value: String,
+pub struct Token {
+    pub token_type: String,
+    pub value: String,
+    pub lineno: usize,
 }
 
 impl Token {
-    fn __init__(t: &str, v: &str) -> Self {
+    pub fn new(token_type: impl Into<String>, value: impl Into<String>, lineno: usize) -> Self {
         Self {
-            token_type: t.to_string(),
-            value: v.to_string(),
+            token_type: token_type.into(),
+            value: value.into(),
+            lineno,
         }
     }
 }
 
 impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // 对应 Python: f'{self.type}({self.value})'
-        write!(f, "{}({})", self.token_type, self.value)
+        // Similar to Python repr: Token(type=..., value=..., lineno=...)
+        write!(
+            f,
+            "Token(type={:?}, value={:?}, lineno={:?})",
+            self.token_type, self.value, self.lineno
+        )
     }
 }
 
-fn tokenize(text: &str) -> Result<Vec<Token>, String> {
-    let keywords: HashMap<&str, &str> = HashMap::from([
-        ("true", "BOOLEAN"),
-        ("false", "BOOLEAN"),
-        ("print", "PRINT"),
-        ("println", "PRINT"),
-        ("int", "TYPE"),
-        ("bool", "TYPE"),
-        ("if", "IF"),
-        ("else", "ELSE"),
-        ("while", "WHILE"),
-        ("return", "RETURN"),
-    ]);
-
-    let double_char: HashMap<&str, &str> = HashMap::from([
-        ("==", "COMP"),
-        ("<=", "COMP"),
-        (">=", "COMP"),
-        ("!=", "COMP"),
-        ("&&", "AND"),
-        ("||", "OR"),
-    ]);
-
-    let single_char: HashMap<char, &str> = HashMap::from([
-        ('=', "ASSIGN"),
-        ('<', "COMP"),
-        ('>', "COMP"),
-        ('!', "NOT"),
-        ('+', "PLUS"),
-        ('-', "MINUS"),
-        ('/', "DIVIDE"),
-        ('*', "TIMES"),
-        ('%', "MOD"),
-        ('(', "LPAREN"),
-        (')', "RPAREN"),
-        ('{', "BEGIN"),
-        ('}', "END"),
-        (';', "SEMICOLON"),
-        (',', "COMMA"),
-    ]);
-
-    let chars: Vec<char> = text.chars().collect();
-    let mut tokens = Vec::new();
-
-    let mut idx: usize = 0;
-    let mut state: i32 = 0;
-    let mut accum = String::new();
-
-    while idx < chars.len() {
-        let sym1 = if idx < chars.len() { chars[idx] } else { ' ' };
-        let sym2 = if idx + 1 < chars.len() { chars[idx + 1] } else { ' ' };
-
-        if state == 0 {
-            if sym1 == '/' && sym2 == '/' {
-                state = 1; // comment
-            } else if sym1.is_ascii_digit() {
-                state = 2;
-                accum.push(sym1);
-            } else if sym1 == '"' {
-                state = 3;
-            } else if sym1.is_ascii_alphabetic() || sym1 == '_' {
-                state = 4;
-                accum.push(sym1);
-            } else {
-                let two = [sym1, sym2].iter().collect::<String>();
-                if let Some(tok_type) = double_char.get(two.as_str()) {
-                    tokens.push(Token::__init__(tok_type, &two));
-                    idx += 1;
-                } else if let Some(tok_type) = single_char.get(&sym1) {
-                    tokens.push(Token::__init__(tok_type, &sym1.to_string()));
-                } else if !matches!(sym1, '\r' | '\t' | ' ' | '\n') {
-                    return Err(format!(
-                        "Lexical error: illegal character \"{}\"",
-                        sym1
-                    ));
-                }
-            }
-        } else if state == 2 {
-            if sym1.is_ascii_digit() {
-                accum.push(sym1);
-            } else {
-                tokens.push(Token::__init__("INTEGER", &accum));
-                idx = idx.saturating_sub(1);
-                state = 0;
-                accum.clear();
-            }
-        } else if state == 3 {
-            let escaped = accum.chars().last() == Some('\\');
-            if sym1 != '"' || (!accum.is_empty() && escaped) {
-                accum.push(sym1);
-            } else {
-                tokens.push(Token::__init__("STRING", &accum));
-                state = 0;
-                accum.clear();
-            }
-        } else if state == 4 {
-            if sym1.is_ascii_alphanumeric() || sym1 == '_' {
-                accum.push(sym1);
-            } else {
-                if let Some(tok_type) = keywords.get(accum.as_str()) {
-                    tokens.push(Token::__init__(tok_type, &accum));
-                } else {
-                    tokens.push(Token::__init__("ID", &accum));
-                }
-                idx = idx.saturating_sub(1);
-                state = 0;
-                accum.clear();
-            }
-        }
-
-        if sym1 == '\n' && state == 1 {
-            state = 0;
-            accum.clear();
-        }
-
-        idx += 1;
-    }
-
-    if state != 0 {
-        return Err("Lexical error: unexpected EOF".to_string());
-    }
-
-    Ok(tokens)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LexError {
+    IllegalCharacter { ch: char, lineno: usize },
+    UnexpectedEof,
 }
 
-// fn main() -> Result<(), String> {
-//     let input = r#"0 // this is a comment to ignore by the lexer
-// "this is a string with an escaped quotation mark \\" and double slash // that is not considered as a comment"
-// 1337
-// _identifier
-// while
-// truefalse
-// 5*3 = -6
-// 2 && 2 == 5;
-// "#;
+impl fmt::Display for LexError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LexError::IllegalCharacter { ch, lineno } => {
+                write!(f, "Lexical error: illegal character '{ch}' at line {lineno}")
+            }
+            LexError::UnexpectedEof => write!(f, "Lexical error: unexpected EOF"),
+        }
+    }
+}
 
-//     let tokens = tokenize(input)?;
-//     println!("{:?}", tokens);
-//     Ok(())
-// }
+impl Error for LexError {}
+
+/// The Wend lexer (Rust).
+///
+/// Goal: behavior-compatible with the Python reference lexer:
+/// - supports // line comments
+/// - supports identifiers, integers, strings (with escaped quotes like \" )
+/// - recognizes keywords, single-char and double-char operators
+/// - maintains 0-based line numbers
+pub struct WendLexer;
+
+impl WendLexer {
+    pub fn new() -> Self {
+        WendLexer
+    }
+
+    /// Tokenize a whole source string.
+    pub fn tokenize(&self, text: &str) -> Result<Vec<Token>, LexError> {
+        // We operate on bytes for efficient lookahead; Wend is ASCII-oriented.
+        let bytes = text.as_bytes();
+
+        let mut tokens: Vec<Token> = Vec::new();
+
+        let mut lineno: usize = 0;
+        let mut idx: usize = 0;
+
+        let mut token_start_lineno: usize = 0;
+
+        // 0 = start, 1 = comment, 2 = string, 3 = word, 4 = number
+        let mut state: u8 = 0;
+        let mut accum = String::new();
+
+
+
+        while idx < bytes.len() {
+            let c = bytes[idx] as char;
+
+            match state {
+                // =========================
+                // state 0: start
+                // =========================
+                0 => {
+                    if c == '/' && idx + 1 < bytes.len() && bytes[idx + 1] == b'/' {
+                        state = 1; // comment
+                        idx += 1;  // consume second '/'
+                    } else if c.is_ascii_alphabetic() || c == '_' {
+                        state = 3;
+                        token_start_lineno = lineno;
+                        accum.clear();
+                        accum.push(c);
+                    } else if c.is_ascii_digit() {
+                        state = 4;
+                        token_start_lineno = lineno;
+                        accum.clear();
+                        accum.push(c);
+                    } else if c == '"' {
+                        state = 2;
+                        token_start_lineno = lineno;
+                        accum.clear();
+                    } else if idx + 1 < bytes.len() {
+                        let two = String::from_utf8_lossy(&bytes[idx..idx + 2]).to_string();
+                        if let Some(tt) = double_char_token_type(&two) {
+                            tokens.push(Token::new(tt, two, lineno));
+                            idx += 1; // consume second char
+                        } else if let Some(tt) = single_char_token_type(c) {
+                            tokens.push(Token::new(tt, c.to_string(), lineno));
+                        } else if c == '\n' {
+                            lineno += 1;
+                        } else if !matches!(c, ' ' | '\t' | '\r') {
+                            return Err(LexError::IllegalCharacter { ch: c, lineno });
+                        }
+                    } else if let Some(tt) = single_char_token_type(c) {
+                        tokens.push(Token::new(tt, c.to_string(), lineno));
+                    } else if c == '\n' {
+                        lineno += 1;
+                    } else if !matches!(c, ' ' | '\t' | '\r') {
+                        return Err(LexError::IllegalCharacter { ch: c, lineno });
+                    }
+                }
+
+                // =========================
+                // state 1: comment
+                // =========================
+                1 => {
+                    if c == '\n' {
+                        lineno += 1;
+                        state = 0;
+                    }
+                }
+
+                // =========================
+                // state 2: string
+                // =========================
+                2 => {
+                    if c == '"' && !accum.ends_with('\\') {
+                        tokens.push(Token::new("STRING", accum.clone(), token_start_lineno));
+                        accum.clear();
+                        state = 0;
+                    } else {
+                        accum.push(c);
+                    }
+                }
+
+                // =========================
+                // state 3: word
+                // =========================
+                3 => {
+                    if c.is_ascii_alphanumeric() || c == '_' {
+                        accum.push(c);
+                    } else {
+                        let tt = keyword_token_type(&accum).unwrap_or("ID");
+                        tokens.push(Token::new(tt, accum.clone(), token_start_lineno));
+                        accum.clear();
+                        state = 0;
+                        continue; // ⚠️ 关键：重新处理当前字符（不回退）
+                    }
+                }
+
+                // =========================
+                // state 4: number
+                // =========================
+                4 => {
+                    if c.is_ascii_digit() {
+                        accum.push(c);
+                    } else {
+                        tokens.push(Token::new("INTEGER", accum.clone(), token_start_lineno));
+                        accum.clear();
+                        state = 0;
+                        continue; // ⚠️ 同上
+                    }
+                }
+
+                _ => unreachable!(),
+            }
+
+            idx += 1;
+        }
+
+        // Python behavior: if state != 0 at EOF => unexpected EOF.
+        // if state != 0 {
+        //     return Err(LexError::UnexpectedEof);
+        // }
+        match state {
+            0 | 1 => {}
+            2 => return Err(LexError::UnexpectedEof),
+            3 => {
+                let tt = keyword_token_type(&accum).unwrap_or("ID");
+                tokens.push(Token::new(tt, accum, token_start_lineno));
+            }
+            4 => {
+                tokens.push(Token::new("INTEGER", accum, token_start_lineno));
+            }
+            _ => unreachable!(),
+        }
+
+        Ok(tokens)
+    }
+}
+
+/// Keyword table (Python: keywords dict).
+/// Returns the token type string if `word` is a reserved keyword.
+fn keyword_token_type(word: &str) -> Option<&'static str> {
+    match word {
+        "true" | "false" => Some("BOOLEAN"),
+        "print" | "println" => Some("PRINT"),
+        "int" | "bool" => Some("TYPE"),
+        "if" => Some("IF"),
+        "else" => Some("ELSE"),
+        "while" => Some("WHILE"),
+        "return" => Some("RETURN"),
+        _ => None,
+    }
+}
+
+/// Two-character operator table (Python: double_char dict).
+fn double_char_token_type(two: &str) -> Option<&'static str> {
+    match two {
+        "==" | "<=" | ">=" | "!=" => Some("COMP"),
+        "&&" => Some("AND"),
+        "||" => Some("OR"),
+        _ => None,
+    }
+}
+
+/// One-character operator table (Python: single_char dict).
+fn single_char_token_type(c: char) -> Option<&'static str> {
+    match c {
+        '=' => Some("ASSIGN"),
+        '<' | '>' => Some("COMP"),
+        '!' => Some("NOT"),
+        '+' => Some("PLUS"),
+        '-' => Some("MINUS"),
+        '/' => Some("DIVIDE"),
+        '*' => Some("TIMES"),
+        '%' => Some("MOD"),
+        '(' => Some("LPAREN"),
+        ')' => Some("RPAREN"),
+        '{' => Some("BEGIN"),
+        '}' => Some("END"),
+        ';' => Some("SEMICOLON"),
+        ',' => Some("COMMA"),
+        _ => None,
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_tokenize_complex_input() {
-        let input = r#"0 // this is a comment to ignore by the lexer
-        "this is a string with an escaped quotation mark \\" and double slash // that is not considered as a comment"
-        1337
-        _identifier
-        while
-        truefalse
-        5*3 = -6
-        2 && 2 == 5;
-        "#;
-
-        let tokens = tokenize(input).expect("tokenize failed");
-        println!("{:#?}", tokens);
-        // // 最基本的断言：至少生成了一些 token
-        // assert!(!tokens.is_empty());
+    fn test_tokenize_matches_python_behavior_basics() {
+        let input = "0 // comment\n\"a\\\"b\"\n1337\n_identifier\nwhile\ntruefalse\n5*3 = -6\n2 && 2 == 5;\n";
+        let tokens = WendLexer::new().tokenize(input).expect("tokenize failed");
 
         let expected = vec![
-            Token::__init__("INTEGER", "0"),
-            Token::__init__(
-                "STRING",
-                r#"this is a string with an escaped quotation mark \\" and double slash // that is not considered as a comment"#,
-            ),
-            Token::__init__("INTEGER", "1337"),
-            Token::__init__("ID", "_identifier"),
-            Token::__init__("WHILE", "while"),
-            Token::__init__("ID", "truefalse"),
-            Token::__init__("INTEGER", "5"),
-            Token::__init__("TIMES", "*"),
-            Token::__init__("INTEGER", "3"),
-            Token::__init__("ASSIGN", "="),
-            Token::__init__("MINUS", "-"),
-            Token::__init__("INTEGER", "6"),
-            Token::__init__("INTEGER", "2"),
-            Token::__init__("AND", "&&"),
-            Token::__init__("INTEGER", "2"),
-            Token::__init__("COMP", "=="),
-            Token::__init__("INTEGER", "5"),
-            Token::__init__("SEMICOLON", ";"),
+            Token::new("INTEGER", "0", 0),
+            Token::new("STRING", "a\\\"b", 1),
+            Token::new("INTEGER", "1337", 2),
+            Token::new("ID", "_identifier", 3),
+            Token::new("WHILE", "while", 4),
+            Token::new("ID", "truefalse", 5),
+            Token::new("INTEGER", "5", 6),
+            Token::new("TIMES", "*", 6),
+            Token::new("INTEGER", "3", 6),
+            Token::new("ASSIGN", "=", 6),
+            Token::new("MINUS", "-", 6),
+            Token::new("INTEGER", "6", 6),
+            Token::new("INTEGER", "2", 7),
+            Token::new("AND", "&&", 7),
+            Token::new("INTEGER", "2", 7),
+            Token::new("COMP", "==", 7),
+            Token::new("INTEGER", "5", 7),
+            Token::new("SEMICOLON", ";", 7),
         ];
 
         assert_eq!(tokens, expected);
+    }
+
+    #[test]
+    fn test_keywords_and_boolean() {
+        let input = "print println int bool if else while return true false";
+        let tokens = WendLexer::new().tokenize(input).unwrap();
+        let types: Vec<&str> = tokens.iter().map(|t| t.token_type.as_str()).collect();
+        assert_eq!(
+            types,
+            vec![
+                "PRINT", "PRINT", "TYPE", "TYPE", "IF", "ELSE", "WHILE", "RETURN", "BOOLEAN",
+                "BOOLEAN"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_unexpected_eof_in_string() {
+        let input = "\"unterminated";
+        let err = WendLexer::new().tokenize(input).unwrap_err();
+        assert_eq!(err, LexError::UnexpectedEof);
     }
 }

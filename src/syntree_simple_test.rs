@@ -1,6 +1,4 @@
-﻿// src/syntree_simple_test.rs
-
-#[cfg(test)]
+﻿#[cfg(test)]
 mod tests {
     use crate::syntree::*;
     use std::fmt::Write as _;
@@ -229,5 +227,108 @@ mod tests {
 
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         assert_eq!(stdout, "7\n7\n");
+    }
+
+    #[test]
+    fn test_presum_syntree_to_python() {
+        // optional: make labels deterministic for snapshot-like outputs
+        LabelFactory::reset();
+
+        // def presum(x):
+        //     result = 0
+        //     while x > 0:
+        //         result = result + x
+        //         x = x - 1
+        //     return result
+        let presum_fun = Function::new(
+            "presum",
+            vec![Var::new("x", deco_t("type", Type::Int))],
+            vec![Var::new("result", deco_t("type", Type::Int))],
+            vec![],
+            vec![
+                Stmt::Assign(Assign::new(
+                    "result",
+                    Expr::Integer(Integer::new(0, deco())),
+                    deco(),
+                )),
+                Stmt::While(While::new(
+                    Expr::LogicOp(LogicOp::new(
+                        ">",
+                        Expr::Var(Var::new("x", deco())),
+                        Expr::Integer(Integer::new(0, deco())),
+                        deco(),
+                    )),
+                    vec![
+                        Stmt::Assign(Assign::new(
+                            "result",
+                            Expr::ArithOp(ArithOp::new(
+                                "+",
+                                Expr::Var(Var::new("result", deco())),
+                                Expr::Var(Var::new("x", deco())),
+                                deco(),
+                            )),
+                            deco(),
+                        )),
+                        Stmt::Assign(Assign::new(
+                            "x",
+                            Expr::ArithOp(ArithOp::new(
+                                "-",
+                                Expr::Var(Var::new("x", deco())),
+                                Expr::Integer(Integer::new(1, deco())),
+                                deco(),
+                            )),
+                            deco(),
+                        )),
+                    ],
+                    deco(),
+                )),
+                Stmt::Return(Return::new(
+                    Some(Expr::Var(Var::new("result", deco()))),
+                    deco(),
+                )),
+            ],
+            deco(),
+        );
+
+        // def main():
+        //     print(presum(5))
+        let main_fun = Function::new(
+            "main",
+            vec![],
+            vec![],
+            vec![presum_fun],
+            vec![Stmt::Print(Print::new(
+                Expr::FunCall(FunCall::new(
+                    "presum",
+                    vec![Expr::Integer(Integer::new(5, deco()))],
+                    deco(),
+                )),
+                true,
+                deco(),
+            ))],
+            deco(),
+        );
+
+        let program = transpy(&main_fun);
+
+        // write presum.py
+        let py_path = PathBuf::from("./presum.py");
+        fs::write(&py_path, &program).expect("write presum.py failed");
+
+        // run python and assert output
+        let output = Command::new("python3")
+            .arg(&py_path)
+            .output()
+            .expect("failed to run python3");
+
+        assert!(
+            output.status.success(),
+            "python failed.\n--- program ---\n{}\n--- stderr ---\n{}",
+            program,
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        assert_eq!(stdout, "15\n"); // 1 + 2 + 3 + 4 + 5 = 15
     }
 }
