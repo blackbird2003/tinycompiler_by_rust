@@ -41,213 +41,55 @@ struct Rule {
 /// The grammar, kept identical to the Python reference implementation.
 /// See `parser.py` for the authoritative list/order. (Rule indices must match.)
 const GRAMMAR: &[Rule] = &[
-    Rule {
-        lhs: "fun",
-        rhs: &[
-            "fun_type",
-            "ID",
-            "LPAREN",
-            "param_list",
-            "RPAREN",
-            "BEGIN",
-            "var_list",
-            "fun_list",
-            "statement_list",
-            "END",
-        ],
-    },
-    Rule {
-        lhs: "var",
-        rhs: &["TYPE", "ID"],
-    },
-    Rule {
-        lhs: "param_list",
-        rhs: &["var"],
-    },
-    Rule {
-        lhs: "param_list",
-        rhs: &[],
-    },
-    Rule {
-        lhs: "param_list",
-        rhs: &["param_list", "COMMA", "var"],
-    },
-    Rule {
-        lhs: "fun_type",
-        rhs: &["TYPE"],
-    },
-    Rule {
-        lhs: "fun_type",
-        rhs: &[],
-    },
-    Rule {
-        lhs: "var_list",
-        rhs: &["var_list", "var", "SEMICOLON"],
-    },
-    Rule {
-        lhs: "var_list",
-        rhs: &[],
-    },
-    Rule {
-        lhs: "fun_list",
-        rhs: &["fun_list", "fun"],
-    },
-    Rule {
-        lhs: "fun_list",
-        rhs: &[],
-    },
-    Rule {
-        lhs: "statement_list",
-        rhs: &["statement_list", "statement"],
-    },
-    Rule {
-        lhs: "statement_list",
-        rhs: &[],
-    },
-    Rule {
-        lhs: "statement",
-        rhs: &["ID", "LPAREN", "arg_list", "RPAREN", "SEMICOLON"],
-    },
-    Rule {
-        lhs: "statement",
-        rhs: &["ID", "ASSIGN", "expr", "SEMICOLON"],
-    },
-    Rule {
-        lhs: "statement",
-        rhs: &["RETURN", "expr", "SEMICOLON"],
-    },
-    Rule {
-        lhs: "statement",
-        rhs: &["RETURN", "SEMICOLON"],
-    },
-    Rule {
-        lhs: "statement",
-        rhs: &["PRINT", "expr", "SEMICOLON"],
-    },
-    Rule {
-        lhs: "statement",
-        rhs: &["IF", "expr", "BEGIN", "statement_list", "END", "else_statement"],
-    },
-    Rule {
-        lhs: "else_statement",
-        rhs: &["ELSE", "BEGIN", "statement_list", "END"],
-    },
-    Rule {
-        lhs: "else_statement",
-        rhs: &[],
-    },
-    Rule {
-        lhs: "statement",
-        rhs: &["WHILE", "expr", "BEGIN", "statement_list", "END"],
-    },
-    Rule {
-        lhs: "arg_list",
-        rhs: &["expr"],
-    },
-    Rule {
-        lhs: "arg_list",
-        rhs: &["arg_list", "COMMA", "expr"],
-    },
-    Rule {
-        lhs: "arg_list",
-        rhs: &[],
-    },
-    Rule {
-        lhs: "expr",
-        rhs: &["conjunction"],
-    },
-    Rule {
-        lhs: "expr",
-        rhs: &["expr", "OR", "conjunction"],
-    },
-    Rule {
-        lhs: "expr",
-        rhs: &["STRING"],
-    },
-    Rule {
-        lhs: "conjunction",
-        rhs: &["literal"],
-    },
-    Rule {
-        lhs: "conjunction",
-        rhs: &["conjunction", "AND", "literal"],
-    },
-    Rule {
-        lhs: "literal",
-        rhs: &["comparand"],
-    },
-    Rule {
-        lhs: "literal",
-        rhs: &["NOT", "comparand"],
-    },
-    Rule {
-        lhs: "comparand",
-        rhs: &["addend"],
-    },
-    Rule {
-        lhs: "comparand",
-        rhs: &["addend", "COMP", "addend"],
-    },
-    Rule {
-        lhs: "addend",
-        rhs: &["term"],
-    },
-    Rule {
-        lhs: "addend",
-        rhs: &["addend", "MINUS", "term"],
-    },
-    Rule {
-        lhs: "addend",
-        rhs: &["addend", "PLUS", "term"],
-    },
-    Rule {
-        lhs: "term",
-        rhs: &["factor"],
-    },
-    Rule {
-        lhs: "term",
-        rhs: &["term", "MOD", "factor"],
-    },
-    Rule {
-        lhs: "term",
-        rhs: &["term", "DIVIDE", "factor"],
-    },
-    Rule {
-        lhs: "term",
-        rhs: &["term", "TIMES", "factor"],
-    },
-    Rule {
-        lhs: "factor",
-        rhs: &["atom"],
-    },
-    Rule {
-        lhs: "factor",
-        rhs: &["PLUS", "atom"],
-    },
-    Rule {
-        lhs: "factor",
-        rhs: &["MINUS", "atom"],
-    },
-    Rule {
-        lhs: "atom",
-        rhs: &["BOOLEAN"],
-    },
-    Rule {
-        lhs: "atom",
-        rhs: &["INTEGER"],
-    },
-    Rule {
-        lhs: "atom",
-        rhs: &["ID", "LPAREN", "arg_list", "RPAREN"],
-    },
-    Rule {
-        lhs: "atom",
-        rhs: &["ID"],
-    },
-    Rule {
-        lhs: "atom",
-        rhs: &["LPAREN", "expr", "RPAREN"],
-    },
+    Rule { lhs: "fun", rhs: &["fun_type", "ID", "LPAREN", "param_list", "RPAREN", "BEGIN", "var_list", "fun_list", "statement_list", "END"] },
+    Rule { lhs: "var", rhs: &["TYPE", "ID"] },
+    Rule { lhs: "param_list", rhs: &["var"] },
+    Rule { lhs: "param_list", rhs: &[] },
+    Rule { lhs: "param_list", rhs: &["param_list", "COMMA", "var"] },
+    Rule { lhs: "fun_type", rhs: &["TYPE"] },
+    Rule { lhs: "fun_type", rhs: &[] },
+    Rule { lhs: "var_list", rhs: &["var_list", "var", "SEMICOLON"] },
+    Rule { lhs: "var_list", rhs: &[] },
+    Rule { lhs: "fun_list", rhs: &["fun_list", "fun"] },
+    Rule { lhs: "fun_list", rhs: &[] },
+    Rule { lhs: "statement_list", rhs: &["statement_list", "statement"] },
+    Rule { lhs: "statement_list", rhs: &[] },
+    Rule { lhs: "statement", rhs: &["ID", "LPAREN", "arg_list", "RPAREN", "SEMICOLON"] },
+    Rule { lhs: "statement", rhs: &["ID", "ASSIGN", "expr", "SEMICOLON"] },
+    Rule { lhs: "statement", rhs: &["RETURN", "expr", "SEMICOLON"] },
+    Rule { lhs: "statement", rhs: &["RETURN", "SEMICOLON"] },
+    Rule { lhs: "statement", rhs: &["PRINT", "expr", "SEMICOLON"] },
+    Rule { lhs: "statement", rhs: &["IF", "expr", "BEGIN", "statement_list", "END", "else_statement"] },
+    Rule { lhs: "else_statement", rhs: &["ELSE", "BEGIN", "statement_list", "END"] },
+    Rule { lhs: "else_statement", rhs: &[] },
+    Rule { lhs: "statement", rhs: &["WHILE", "expr", "BEGIN", "statement_list", "END"] },
+    Rule { lhs: "arg_list", rhs: &["expr"] },
+    Rule { lhs: "arg_list", rhs: &["arg_list", "COMMA", "expr"] },
+    Rule { lhs: "arg_list", rhs: &[] },
+    Rule { lhs: "expr", rhs: &["conjunction"] },
+    Rule { lhs: "expr", rhs: &["expr", "OR", "conjunction"] },
+    Rule { lhs: "expr", rhs: &["STRING"] },
+    Rule { lhs: "conjunction", rhs: &["literal"] },
+    Rule { lhs: "conjunction", rhs: &["conjunction", "AND", "literal"] },
+    Rule { lhs: "literal", rhs: &["comparand"] },
+    Rule { lhs: "literal", rhs: &["NOT", "comparand"] },
+    Rule { lhs: "comparand", rhs: &["addend"] },
+    Rule { lhs: "comparand", rhs: &["addend", "COMP", "addend"] },
+    Rule { lhs: "addend", rhs: &["term"] },
+    Rule { lhs: "addend", rhs: &["addend", "MINUS", "term"] },
+    Rule { lhs: "addend", rhs: &["addend", "PLUS", "term"] },
+    Rule { lhs: "term", rhs: &["factor"] },
+    Rule { lhs: "term", rhs: &["term", "MOD", "factor"] },
+    Rule { lhs: "term", rhs: &["term", "DIVIDE", "factor"] },
+    Rule { lhs: "term", rhs: &["term", "TIMES", "factor"] },
+    Rule { lhs: "factor", rhs: &["atom"] },
+    Rule { lhs: "factor", rhs: &["PLUS", "atom"] },
+    Rule { lhs: "factor", rhs: &["MINUS", "atom"] },
+    Rule { lhs: "atom", rhs: &["BOOLEAN"] },
+    Rule { lhs: "atom", rhs: &["INTEGER"] },
+    Rule { lhs: "atom", rhs: &["ID", "LPAREN", "arg_list", "RPAREN"] },
+    Rule { lhs: "atom", rhs: &["ID"] },
+    Rule { lhs: "atom", rhs: &["LPAREN", "expr", "RPAREN"] },
 ];
 
 /// A single Earley item (ParseState in the Python reference).
@@ -964,7 +806,6 @@ mod tests {
         let parser = WendParser::new();
         let ast = parser.parse(tokens).unwrap();
 
-        // 只要能成功 parse 就说明 grammar / earley / AST 回放是对的
         println!("{:?}", ast);
     }
 
@@ -972,12 +813,15 @@ mod tests {
     fn parse_expr_precedence() {
         let src = r#"
         main() {
+            int x;
+            // x = 1;
             int f(int x) {
                 int y;
                 y = x + 1 * 2;
                 return y;
             }
-            println f(3);
+            x = f(3) + 1;
+            println x;
         }
         "#;
 
