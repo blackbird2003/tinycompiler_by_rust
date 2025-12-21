@@ -1,2 +1,3 @@
-﻿use::carte::syntree::*;
-use::carte::symtable::*;
+﻿use crate::syntree::*;
+use crate::symtable::*;
+

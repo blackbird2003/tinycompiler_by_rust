@@ -2,6 +2,7 @@ mod lexer;
 mod syntree;
 mod syntree_simple_test;
 mod parser;
+mod symtable;
 mod analyzer;
 mod transasm;
 
@@ -26,6 +27,6 @@ try:
 */
 fn main() {
     println!("compiler is not so hard!");
-    source_path: &str = "path/source.wend";
+    let source_path = "path/source.wend";
     // ...
 }
