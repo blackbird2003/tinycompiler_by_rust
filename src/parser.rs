@@ -799,13 +799,10 @@ mod tests {
             println f(3);
         }
         "#;
-
         let lexer = WendLexer::new();
         let tokens = lexer.tokenize(src).unwrap();
-
         let parser = WendParser::new();
         let ast = parser.parse(tokens).unwrap();
-
         println!("{:?}", ast);
     }
 
@@ -814,7 +811,6 @@ mod tests {
         let src = r#"
         main() {
             int x;
-            // x = 1;
             int f(int x) {
                 int y;
                 y = x + 1 * 2;
@@ -824,13 +820,10 @@ mod tests {
             println x;
         }
         "#;
-
         let lexer = WendLexer::new();
         let tokens = lexer.tokenize(src).unwrap();
-
         let parser = WendParser::new();
         let ast = parser.parse(tokens).unwrap();
-
         println!("{:?}", ast);
     }
 }
