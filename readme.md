@@ -1,9 +1,19 @@
-﻿目标:实现一个Wend语言(简化版C语言)的编译器,包含lexer/parser/analyzer/assembly generate四个主要的组件以及相关的数据结构。
+﻿要求:
+编译器同样是重要的系统软件，它能够将我们编写的⾼级源代码转换成贴近底层的⽬标代码，本选课即为利⽤ Rust 实现⼀个简单语⾔的编译器。
+1. 你可以⾃定义实现的语⾔，但它⾄少应该具有基本的数据类型、变量声明、函数声明、循环、条件判断等基本语法。
+2. 实现的编译器⾄少应该具有语法分析和代码⽣成这两部分。
+3. 在代码⽣成中，你可以选择基于 LLVM 的技术将源代码编译成⽬标⽂件，或者类似于 Java,Python 等语⾔的字节码并实现⼀个虚拟机来执⾏它。
+参考资料：
+Compiler Book
+Lox implementation in RustStanford Compiler Course
+
+目标:实现一个Wend语言(简化版C语言)的编译器,包含lexer/parser/analyzer/assembly generate四个主要的组件以及相关的数据结构(语法树、符号表)。
 
 参考资料:
 
 - Tiny Compiler ssloy.github.io/tinycompiler/ 一个用Python语言实现Wend编译器的教程
 - How to Develop a Compiler (青木峰郎 著) 用Java实现Cb(也是一个简化版C语言)编译器的教程
+
 
 
 实现顺序
@@ -40,12 +50,13 @@
 # Lexer
 Lexer本质上是一个状态机，把输入的字符串转化成一系列Tokens。
 
-Token的定义是(token_type, value)
+Token的定义是(token_type, value)。在编译器中，增加行号用于代码生成。
 
 ```rust
-struct Token {
-    token_type: String,
-    value: String,
+pub struct Token {
+    pub token_type: String,
+    pub value: String,
+    pub lineno: usize,
 }
 ```
 
@@ -55,7 +66,7 @@ struct Token {
 # Syntree
 我们要定义一个语法树。
 
-例如,对于下面这个实现开根号的函数
+例如,对于下面这个实现开根号的函数(这不是我们要实现的最终语言)
 ```c
 fun main() {
     // square root of a fixed-point number
@@ -109,7 +120,6 @@ Parser的作用是
 
 这里，我们使用一种实现简单、功能强大(支持任何上下文无关文法，包括歧义文法)的Earley Parser。
 
-## 理论
 
 Earley 解析器以输入位置为阶段进行工作。设输入词法单元序列为 $t_0 t_1 \ldots t_{n-1}$。对每个输入位置 $j \in [0 \ldots n]$，算法维护一个集合 $J_j$，其中的元素称为 Earley。 在任意 $J_j$ 中，相同的 Earley 项至多出现一次。
 
@@ -174,7 +184,77 @@ procedure COMPLETER((B → γ•, x), k)
     end
 ```
 
-## 实现
+# 符号表+语义分析器
+
+## 符号表设计
+python版本tinycompiler中的符号表设计
+```python
+class SymbolTable():
+    def __init__(self):
+        self.variables = [{}]     # stack of variable symbol tables
+        self.functions = [{}]     # stack of function symbol tables
+        self.ret_stack = [ None ] # stack of enclosing function symbols, useful for return statements
+        self.scope_cnt = 0        # global scope counter for the display table allocation
+
+    def add_fun(self, name, argtypes, deco):  # a function can be identified by its name and a list of argument types, e.g.
+        signature = (name, *argtypes)         # fun foo(x:bool, y:int) : int {...} has ('foo',Type.BOOL,Type.INT) signature
+        if signature in self.functions[-1]:
+            raise Exception('Double declaration of the function %s %s' % (signature[0], signature[1:]))
+        self.functions[-1][signature] = deco
+        deco['scope'] = self.scope_cnt # id for the function block in the scope display table
+        self.scope_cnt += 1
+
+    def add_var(self, name, deco):
+        if name in self.variables[-1]:
+            raise Exception('Double declaration of the variable %s' % name)
+        self.variables[-1][name] = deco
+        deco['scope']  = self.ret_stack[-1]['scope']   # pointer to the display entry
+        deco['offset'] = self.ret_stack[-1]['var_cnt'] # id of the variable in the corresponding stack frame
+        self.ret_stack[-1]['var_cnt'] += 1
+
+    def push_scope(self, deco):
+        self.variables.append({})
+        self.functions.append({})
+        self.ret_stack.append(deco)
+        deco['var_cnt'] = 0 # reset the per scope variable counter
+
+    def pop_scope(self):
+        self.variables.pop()
+        self.functions.pop()
+        self.ret_stack.pop()
+
+    def find_var(self, name):
+        for i in reversed(range(len(self.variables))):
+            if name in self.variables[i]:
+                return self.variables[i][name]
+        raise Exception('No declaration for the variable %s' % name)
+
+    def find_fun(self, name, argtypes):
+        signature = (name, *argtypes)
+        for i in reversed(range(len(self.functions))):
+            if signature in self.functions[i]:
+                return self.functions[i][signature]
+        raise Exception('No declaration for the function %s' % signature[0], signature[1:])
+```
+SymbolTable实际上是一个符号表的栈，每个作用域有各自的符号表，包括变量的符号表和函数的符号表。
+
+我们为每一个scope(作用域)分配了id。同时约定：一个函数的局部变量只能在函数的开头位置声明，这些声明的变量与函数参数共同构成了属于这个作用域的变量，它们都有各自的变量id，如下图所示。
+
+这样，我们只需要一个scope_id加一个var_id即可确定一个变量，也可以通过遍历符号表栈获取外层作用域的变量。
+
+在进入、退出作用域时，通过栈操作对符号表进行维护即可。
+
+![symtable](images/symtable.png)
+
+## 语义分析器
+
+语义分析器借助上述符号表，对AST进行检查，确认AST中节点变量/函数的合法性，确保没有变量和函数的未定义、重复定义等问题。如果没有问题，则能够认为代码已经“通过检查”，语义分析器同时会对AST节点添加修饰信息,便于下一步生成汇编代码。
+
+
+# 汇编生成
+
+## 中间表示：三地址码
+
 
 
 
