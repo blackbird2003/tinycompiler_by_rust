@@ -1,13 +1,16 @@
-﻿要求:
-编译器同样是重要的系统软件，它能够将我们编写的⾼级源代码转换成贴近底层的⽬标代码，本选课即为利⽤ Rust 实现⼀个简单语⾔的编译器。
-1. 你可以⾃定义实现的语⾔，但它⾄少应该具有基本的数据类型、变量声明、函数声明、循环、条件判断等基本语法。
-2. 实现的编译器⾄少应该具有语法分析和代码⽣成这两部分。
-3. 在代码⽣成中，你可以选择基于 LLVM 的技术将源代码编译成⽬标⽂件，或者类似于 Java,Python 等语⾔的字节码并实现⼀个虚拟机来执⾏它。
-参考资料：
-Compiler Book
-Lox implementation in RustStanford Compiler Course
+﻿> 要求:
+>
+> - 编译器同样是重要的系统软件，它能够将我们编写的⾼级源代码转换成贴近底层的⽬标代码，本选课即为利⽤ Rust 实现⼀个简单语⾔的编译器。1> . 你可以⾃定义实现的语⾔，但它⾄少应该具有基本的数据类型、变量声明、函数声明、循环、条件判断等基本语法。
+>
+> -  实现的编译器⾄少应该具有语法分析和代码⽣成这两部分。
+> -  在代码⽣成中，你可以选择基于 LLVM 的技术将源代码编译成⽬标⽂件，或者类似于 Java,Python 等语⾔的字节码并实现⼀个虚拟机来执⾏它。
+> 
+> - 参考资料：
+> Compiler Book,
+> Lox implementation in RustStanford Compiler Course
 
-目标:实现一个Wend语言(简化版C语言)的编译器,包含lexer/parser/analyzer/assembly generate四个主要的组件以及相关的数据结构(语法树、符号表)。
+目标:实现简化版C语言(称为wend)的编译器,(语言规范详见[description](language_description.md)),包含lexer/parser/analyzer/assembly generate四个主要的组件以及相关的数据结构(语法树、符号表)。
+
 
 参考资料:
 
@@ -16,25 +19,9 @@ Lox implementation in RustStanford Compiler Course
 
 
 
-实现顺序
+实现顺序: lexer & syntree -> parser -> analyzer(with symtable) -> transasm (with asm templetes) -> main
 
-顺序	文件	行数	依赖	难度
 
-1️⃣	lexer.rs	~100	无	⭐⭐ 中等
-
-2️⃣	syntree.rs	~100	无	⭐ 简单
-
-3️⃣	parser.rs	~200	lexer, syntree	⭐⭐⭐ 困难
-
-4️⃣	symtable.rs	~100	syntree	⭐⭐ 中等
-
-5️⃣	analyzer.rs	~150	syntree, symtable	⭐⭐⭐ 困难
-
-6️⃣	transasm_recipe.rs	~100	无	⭐ 简单
-
-7️⃣	transasm.rs	~150	syntree, transasm_recipe	⭐⭐⭐ 困难
-
-8️⃣	main.rs	~50	所有	⭐ 简单
 
 ![overview](images/overview.png)
 
