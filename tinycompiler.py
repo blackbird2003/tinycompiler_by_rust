@@ -593,6 +593,34 @@ def stat(n):
 
 # 6. final main part
 
+
+
+# add print_ast for debugging
+def print_ast(node):
+    """紧凑打印语法树节点的结构"""
+    if isinstance(node, list):  # 如果是列表，递归打印每个元素
+        print("[", end="")
+        for item in node:
+            print_ast(item)
+            print(",", end="")
+        print("]", end="")
+    elif isinstance(node, dict):  # 如果是字典，递归打印键值对
+        print("{", end="")
+        for key, value in node.items():
+            print(f"{key}:", end="")
+            print_ast(value)
+            print(",", end="")
+        print("}", end="")
+    elif hasattr(node, "__dict__"):  # 如果是自定义对象，打印其属性
+        print(f"{node.__class__.__name__}(", end="")
+        for key, value in node.__dict__.items():
+            print(f"{key}:", end="")
+            print_ast(value)
+            print(",", end="")
+        print(")", end="")
+    else:  # 如果是基本类型，直接打印
+        print(repr(node), end="")
+
 import io, sys
 # from lexer import WendLexer
 # from parser import WendParser
@@ -605,7 +633,10 @@ try:
     f = open(sys.argv[1], 'r')
     tokens = WendLexer().tokenize(f.read())
     ast = WendParser().parse(tokens)
+    print_ast(ast)
+    print('\n-------------')
     decorate(ast)
+    print_ast(ast)
     asm_code = transasm(ast)
     # print(asm_code)
     # output to ./out.s

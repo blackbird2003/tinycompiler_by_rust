@@ -1,0 +1,10 @@
+main() {
+    int x;
+    int f(int x) {
+        int y;
+        y = x + 1 * 2;
+        return y;
+    }
+    x = f(3) + 1;
+    println x;
+}
