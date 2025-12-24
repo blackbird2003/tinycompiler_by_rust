@@ -3,7 +3,7 @@ mod lexer;
 mod parser;
 mod analyzer;
 mod asm_templete;
-mod transasm;
+mod asm_generate;
 
 use std::env;
 use std::fs;
@@ -12,7 +12,7 @@ use std::process;
 use crate::lexer::WendLexer;
 use crate::parser::WendParser;
 use crate::analyzer::decorate;
-use crate::transasm::transasm;
+use crate::asm_generate::asm_generate;
 /*
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -31,7 +31,7 @@ fn main() {
 
     decorate(&mut ast);
 
-    let asm_code = transasm(&ast);
+    let asm_code = asm_generate(&ast);
     fs::write("out.s", asm_code).unwrap();
 
     println!("Assembly code generated in out.s");
@@ -78,7 +78,7 @@ fn main() {
 
     decorate(&mut ast);
     
-    let asm_code = transasm(&ast);
+    let asm_code = asm_generate(&ast);
 
     if let Err(e) = fs::write("out.s", asm_code) {
         eprintln!("Failed to write out.s: {}", e);

@@ -9,7 +9,7 @@
 > Compiler Book,
 > Lox implementation in RustStanford Compiler Course
 
-目标:实现简化版C语言(称为wend)的编译器,包含lexer/parser/analyzer/assembly generate四个主要的组件以及相关的数据结构(语法树、符号表)。
+目标:实现简化版C语言(称为wend)的编译器,包含lexer/parser/analyzer/assembly generate四个主要的组件以及相关的数据结构(语法树、符号表、汇编生成模板)。
 
 
 参考资料:
@@ -19,7 +19,7 @@
 
 
 
-实现顺序: lexer & syntree -> parser -> analyzer(with symtable) -> transasm (with asm templetes) -> main
+实现顺序: lexer & syntree -> parser -> analyzer(with symtable) -> asm_generate (with asm templetes) -> main
 ![overview](images/overview.png)
 
 # 目标语言简介
@@ -92,12 +92,6 @@ main() {
 
 
 
-# 命名约定
-蛇形命名法（snake_case）：用于变量、函数、方法、模块、文件
-
-帕斯卡命名法（PascalCase）：用于类型、特征、枚举、泛型参数
-
-全大写蛇形命名法（SCREAMING_SNAKE_CASE）：用于常量、静态变量
 
 # 词法分析 (Lexer)
 Lexer本质上是一个状态机，把输入的字符串转化成一系列Tokens。
@@ -163,6 +157,7 @@ fun main() {
 语法树是对程序的一种抽象，这种抽象与语言无关，因此我们通过解析一种语言得到语法树后，可以通过遍历语法树生成另一种语言的代码，包括汇编代码。
 
 
+
 # 语法分析 (Parser)
 
 Parser的作用是
@@ -170,7 +165,7 @@ Parser的作用是
 - 判断一系列Token组成的语句是否符合语法规则
 - 如果符合，则构建出相应的语法树
 
-这里，我们使用一种实现简单、功能强大(支持任何上下文无关文法，包括歧义文法)的Earley Parser。
+这里，我们使用一种实现简单、功能强大(支持任何上下文无关文法，包括歧义文法)的Earley Parser, 它能够很好地支持类似C语言的TYPE ID式声明。
 
 
 Earley 解析器以输入位置为阶段进行工作。设输入词法单元序列为 $t_0 t_1 \ldots t_{n-1}$。对每个输入位置 $j \in [0 \ldots n]$，算法维护一个集合 $J_j$，其中的元素称为 Earley。 在任意 $J_j$ 中，相同的 Earley 项至多出现一次。
@@ -193,7 +188,7 @@ Earley 解析器以输入位置为阶段进行工作。设输入词法单元序�
 
 
 
-如果 $ (S' \to S \bullet, 0) $ 存在于集合 $ J_n $ 中，则算法成功解析了 $ n $ 个输入词法单元的序列 $ t_0t_1 \ldots t_{n-1} $，否则报告错误。
+如果 $(S' \to S \bullet, 0)$ 存在于集合 $J_n$ 中，则算法成功解析了 $n$ 个输入词法单元的序列 $t_0t_1 \ldots t_{n-1}$，否则报告错误。
 
 伪代码
 ```
@@ -315,7 +310,7 @@ Display是一个全局数组，在汇编中被声明在 .data 段。其大小为
 Display[scope_id]存放的就是该作用域当前活动代码的帧基址，当scope_id所对应的函数发生对其他函数的调用与返回时，Display[scope_id]会被修改和恢复，以正确定位所需的局部变量。详见下一部分的“函数调用的汇编生成”。
 
 
-# 汇编生成 (transasm)
+# 汇编生成 (asm_generate)
 
 这一部分的作用是把经过语义分析装饰后的语法树生成汇编代码。
 
@@ -374,10 +369,12 @@ def foo():
     del stack[-nlocals:]
 ```
 
+同样的，我们可以将函数调用的流程写为汇编模板，进行整体替换
+
 ## 汇编生成的总体流程
 
 ```
-def transasm(n):
+def asm_generate(n):
     # 生成所有字符串常量的汇编代码：遍历语法树节点中的字符串常量表，
     # 对每个(label, string)对使用'ascii'模板进行格式化，然后拼接成完整字符串段
     strings = ''.join([templates['ascii'].format(label=label, string=string) for label,string in n.deco['strings']])

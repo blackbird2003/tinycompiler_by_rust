@@ -59,7 +59,7 @@ fn escape_ascii(s: &str) -> String {
     out
 }
 
-pub fn transasm(main_fun: &Function) -> String {
+pub fn asm_generate(main_fun: &Function) -> String {
     // strings: ''.join([templates['ascii']... for label,string in n.deco['strings']])
     let mut strings_asm = String::new();
     let strings = get_stringset(&main_fun.deco, "strings");
