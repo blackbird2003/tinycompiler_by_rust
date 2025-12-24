@@ -5,33 +5,90 @@ mod analyzer;
 mod asm_templete;
 mod transasm;
 
+use std::env;
+use std::fs;
+use std::process;
+
+use crate::lexer::WendLexer;
+use crate::parser::WendParser;
+use crate::analyzer::decorate;
+use crate::transasm::transasm;
 /*
-main.py in python tinycompiler:
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        eprintln!("Usage: cargo run -- path/to/source.wend");
+        process::exit(1);
+    }
+    let src_path = &args[1];
+    let src = fs::read_to_string(src_path).unwrap();
 
-import io, sys
-from lexer import WendLexer
-from parser import WendParser
-from analyzer import decorate
-from transasm import transasm
+    let lexer = WendLexer::new();
+    let tokens = lexer.tokenize(&src).unwrap();
 
-if len(sys.argv)!=2:
-    sys.exit('Usage: compiler.py path/source.wend')
-try:
-    f = open(sys.argv[1], 'r')
-    tokens = WendLexer().tokenize(f.read())
-    ast = WendParser().parse(tokens)
-    decorate(ast)
-    asm_code = transasm(ast)
-    # print(asm_code)
-    # output to ./out.s
-    with open('out.s', 'w') as out_file:
-        out_file.write(asm_code)
-    print('Assembly code generated in out.s')
-    print('Please run it by the following command: as --march=i386 --32 -o out.o out.s && ld -m elf_i386 out.o -o out && ./out')
+    let parser = WendParser::new();
+    let mut ast = parser.parse(tokens).unwrap();
 
+    decorate(&mut ast);
+
+    let asm_code = transasm(&ast);
+    fs::write("out.s", asm_code).unwrap();
+
+    println!("Assembly code generated in out.s");
+    println!(
+        "Please run it by the following command:\n\
+         as --march=i386 --32 -o out.o out.s && \
+         ld -m elf_i386 out.o -o out && ./out"
+    );
+}
 */
 fn main() {
-    println!("compiler is not so hard!");
-    let source_path = "path/source.wend";
-    // ...
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        eprintln!("Usage: cargo run -- path/to/source.wend");
+        process::exit(1);
+    }
+
+    let src_path = &args[1];
+    let src = match fs::read_to_string(src_path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to read {}: {}", src_path, e);
+            process::exit(1);
+        }
+    };
+
+    let lexer = WendLexer::new();
+    let tokens = match lexer.tokenize(&src) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("Lexing error: {:?}", e);
+            process::exit(1);
+        }
+    };
+
+    let parser = WendParser::new();
+    let mut ast = match parser.parse(tokens) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("Parsing error: {:?}", e);
+            process::exit(1);
+        }
+    };
+
+    decorate(&mut ast);
+    
+    let asm_code = transasm(&ast);
+
+    if let Err(e) = fs::write("out.s", asm_code) {
+        eprintln!("Failed to write out.s: {}", e);
+        process::exit(1);
+    }
+
+    println!("Assembly code generated in out.s");
+    println!(
+        "Please run it by the following command:\n\
+         as --march=i386 --32 -o out.o out.s && \
+         ld -m elf_i386 out.o -o out && ./out"
+    );
 }
