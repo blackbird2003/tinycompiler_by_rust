@@ -1,13 +1,18 @@
-mod lexer;
 mod syntree;
-mod syntree_simple_test;
+mod lexer;
 mod parser;
-mod symtable;
 mod analyzer;
+mod asm_templete;
 mod transasm;
 
 /*
-main() in python tinycompiler
+main.py in python tinycompiler:
+
+import io, sys
+from lexer import WendLexer
+from parser import WendParser
+from analyzer import decorate
+from transasm import transasm
 
 if len(sys.argv)!=2:
     sys.exit('Usage: compiler.py path/source.wend')
@@ -22,7 +27,7 @@ try:
     with open('out.s', 'w') as out_file:
         out_file.write(asm_code)
     print('Assembly code generated in out.s')
-    # as --march=i386 --32 -o out.o out.s && ld -m elf_i386 out.o -o out && ./out
+    print('Please run it by the following command: as --march=i386 --32 -o out.o out.s && ld -m elf_i386 out.o -o out && ./out')
 
 */
 fn main() {
