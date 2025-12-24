@@ -34,7 +34,7 @@
 
 全大写蛇形命名法（SCREAMING_SNAKE_CASE）：用于常量、静态变量
 
-# Lexer
+# 词法分析 (Lexer)
 Lexer本质上是一个状态机，把输入的字符串转化成一系列Tokens。
 
 Token的定义是(token_type, value)。在编译器中，增加行号用于代码生成。
@@ -51,9 +51,8 @@ pub struct Token {
 ![lexer](images/lexer.png)
 
 # Syntree
-我们要定义一个语法树。
+我们要定义一个语法树。例如,对于下面这个实现开根号的函数(这不是我们要实现的最终语言)
 
-例如,对于下面这个实现开根号的函数(这不是我们要实现的最终语言)
 ```c
 fun main() {
     // square root of a fixed-point number
@@ -99,7 +98,8 @@ fun main() {
 语法树是对程序的一种抽象，这种抽象与语言无关，因此我们通过解析一种语言得到语法树后，可以通过遍历语法树生成另一种语言的代码，包括汇编代码。
 
 
-# Parser
+# 语法分析 (Parser)
+
 Parser的作用是
 
 - 判断一系列Token组成的语句是否符合语法规则
@@ -171,9 +171,9 @@ procedure COMPLETER((B → γ•, x), k)
     end
 ```
 
-# 符号表+语义分析器
+# 语义分析 (Analyzer)
 
-## 符号表设计
+## 符号表(SymbolTable)
 python版本tinycompiler中的符号表设计
 ```python
 class SymbolTable():
@@ -237,20 +237,113 @@ fun →
 
 ![symtable](images/symtable.png)
 
-这样，我们只需要一个scope_id加一个var_id即可确定一个变量，也可以通过遍历符号表栈获取外层作用域的变量。
 
-在进入、退出作用域时，通过栈操作对符号表进行维护即可。
-
+我们记录下每个scope的帧基址，这样，我们只需要一个scope_id加一个var_id即可确定一个变量,即：变量地址 = scope_id帧的基地址 - 偏移量(var_id * 4)
 
 
-## 语义分析器
+语义分析器借助符号表，对AST进行检查，确认AST中节点变量/函数的合法性，确保没有变量和函数的未定义、重复定义等问题。如果没有问题，则能够认为代码已经“通过检查”。
 
-语义分析器借助上述符号表，对AST进行检查，确认AST中节点变量/函数的合法性，确保没有变量和函数的未定义、重复定义等问题。如果没有问题，则能够认为代码已经“通过检查”，语义分析器同时会对AST节点添加修饰信息,便于下一步生成汇编代码。
+语义分析器同时会对AST节点添加scope_id,var_id,var_cnt等信息,便于下一步生成汇编代码。
+
+## 显示表(Display)的作用与构建
+Display是一个全局数组，在汇编中被声明在 .data 段。其大小为作用域的总数量scope_cnt, 在语义分析的阶段确定。
+Display[scope_id]存放的就是该作用域当前活动代码的帧基址，当scope_id所对应的函数发生对其他函数的调用与返回时，Display[scope_id]会被修改和恢复，以正确定位所需的局部变量。详见下一部分的“函数调用的汇编生成”。
 
 
-# 汇编生成
+# 汇编生成 (transasm)
 
-## 中间表示：三地址码
+这一部分的作用是把经过语义分析装饰后的语法树生成汇编代码。
+
+## 表达式的汇编生成
+
+> GNU汇编的基本格式:
+> ```
+> op src,dst
+> ```
+我们使用简单的GNU x86汇编，规定函数的返回值和表达式的结果(即AST的结点值)都存储在eax寄存器中。我们希望找到一种简单、通用的表达式计算方法，**只用eax,ebx两个寄存器和一个堆栈**
+
+使用简单的栈机模型进行二元表达式(a op b)计算：
+```
+1. 计算左表达式a->%eax
+2. push %eax
+3. 计算右表达式b->%eax
+4. mov %eax, %ebx
+5. pop %eax
+6. op %ebx, %eax
+```
+对于所有表达式操作，都可以用上面的方式构造一个“汇编模板”。
+通过对语法树进行深度优先遍历并展开对每个表达式的汇编模板，即可生成函数体部分的所有汇编代码。
+例如，对于表达式a + 2 * b,可以将其转换成下列汇编代码
+```
+move a to %eax                            \
+push(%eax)                                |
+move 2 to %eax      \                     |
+push(%eax)           |                    |
+move b to %eax       | 2*b saved in %eax  | a + 2*b saved in %eax
+move %eax to %ebx    |                    |
+%eax = pop()         |                    |
+%eax = %eax * %ebx  /                     |
+move %eax to %ebx                         |
+%eax = pop()                              |
+%eax = %eax + %ebx                        /
+```
+
+
+## 函数调用的汇编生成
+
+接下来，我们考虑如何生成函数调用的汇编。
+
+函数调用实际上隐含下面的流程
+```
+def foo():
+  global display,stack,eax
+  stack += [None]*nlocals                     # 在栈中留出局部变量的空间
+  stack += [display[scope]]                   # 保存调用者的帧指针
+  display[scope] = len(stack)-nlocals-nargs-1 # 设置当前函数的帧指针
+
+  ...                                         # 函数体，平常我们只需要写这一部分
+
+  display[scope] = stack.pop()                # 恢复调用者的帧指针
+  eax = ...                                   # 当前函数的返回值存入eax
+  if nlocals>0:                               # 移除栈中当前函数的局部变量
+    del stack[-nlocals:]
+```
+
+## 汇编生成的总体流程
+
+```
+def transasm(n):
+    # 生成所有字符串常量的汇编代码：遍历语法树节点中的字符串常量表，
+    # 对每个(label, string)对使用'ascii'模板进行格式化，然后拼接成完整字符串段
+    strings = ''.join([templates['ascii'].format(label=label, string=string) for label,string in n.deco['strings']])
+    
+    # 计算显示表(display)的总大小：scope_cnt表示作用域数量，每个作用域指针占4字节
+    display_size = n.deco['scope_cnt']*4
+    
+    # 计算当前作用域在display表中的偏移量：scope表示当前作用域编号，乘以4得到在display数组中的字节偏移量
+    offset       = n.deco['scope']*4
+    
+    # 获取主函数的标签名：从语法树节点中提取主函数的符号标签
+    main         = n.deco['label']
+    
+    # 计算局部变量所需的空间大小
+    varsize      = len(n.var)*4
+    
+    # 递归生成所有函数的汇编代码：调用fun函数处理语法树中的函数定义，生成函数体的汇编代码
+    functions    = fun(n)
+    
+    # 使用'program'模板生成完整的汇编程序：将前面计算的所有变传递给模板进行格式化，返回最终的汇编代码字符串
+    return templates['program'].format(
+    strings=strings,
+    display_size=display_size,
+    offset=offset,
+    main=main,
+    varsize=varsize,
+    functions=functions
+)
+```
+
+
 
 
 
