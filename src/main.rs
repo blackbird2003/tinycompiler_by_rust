@@ -76,8 +76,14 @@ fn main() {
         }
     };
 
-    decorate(&mut ast);
-    
+    if let Err(e) = (|| -> Result<(), String> {
+        decorate(&mut ast);
+        Ok(())
+    })() {
+        eprintln!("Semantic analysis error: {:?}", e);
+        process::exit(1);
+    }
+        
     let asm_code = asm_generate(&ast);
 
     if let Err(e) = fs::write("out.s", asm_code) {

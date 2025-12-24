@@ -18,6 +18,15 @@
 - How to Develop a Compiler (青木峰郎 著) 用Java实现Cb(也是一个简化版C语言)编译器的教程
 
 
+How to run:
+```
+# 生成x86汇编 out.s
+cargo run -- ./test-programs/example/example.wend 
+# 运行
+as --march=i386 --32 -o out.o out.s && ld -m elf_i386 out.o -o out && ./out
+```
+
+
 
 实现顺序: lexer & syntree -> parser -> analyzer(with symtable) -> asm_generate (with asm templetes) -> main
 ![overview](images/overview.png)
