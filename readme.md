@@ -9,7 +9,7 @@
 > Compiler Book,
 > Lox implementation in RustStanford Compiler Course
 
-目标:实现简化版C语言(称为wend)的编译器,(语言规范详见[description](language_description.md)),包含lexer/parser/analyzer/assembly generate四个主要的组件以及相关的数据结构(语法树、符号表)。
+目标:实现简化版C语言(称为wend)的编译器,包含lexer/parser/analyzer/assembly generate四个主要的组件以及相关的数据结构(语法树、符号表)。
 
 
 参考资料:
@@ -20,10 +20,75 @@
 
 
 实现顺序: lexer & syntree -> parser -> analyzer(with symtable) -> transasm (with asm templetes) -> main
-
-
-
 ![overview](images/overview.png)
+
+# 目标语言简介
+Wend是一种结构化的、简化版的C语言，与C语言的主要区别如下：
+
+1. **强制入口点**：程序的唯一入口必须是`main()`函数。程序所有内容定义在`main()`中，main外没有全局变量、函数等内容。
+2. **嵌套函数**：函数内可以定义嵌套函数。所有函数必须定义在`main()`函数内部。允许函数递归和函数重载。
+3. **严格顺序**：函数体内部必须按照 **局部变量声明 → 嵌套函数定义 → 可执行语句** 的顺序组织代码（类似于C89）。
+4. **变量作用域规则**：每个函数(不包括子函数区域)对应一个作用域，局部变量在当前函数和子函数的作用域中有效。子函数在引用一个变量时，首先在自身作用域中查找，如果找不到再逐层向外查找。同一个作用域中不能定义重名变量,不同的作用域可以有重名变量。
+5. **其他限制**：只有int和bool变量，以及int,bool和string三种字面量。系统提供print和println两个函数，能够打印int和string。流程控制仅支持if、else和while循环。
+
+示例程序:
+```
+main() {
+    int x;
+    int y;
+    int z;
+    
+
+    int min(int x, int y) {
+        if x < y {
+            return x;
+        }
+        return y;
+    }
+    // 重载函数
+    int min(int x, int y, int z) {
+        int temp;
+        temp = min(x, y);  // 调用两参数版本
+        if temp < z {
+            return temp;
+        }
+        return z;
+    }
+    //递归版阶乘
+    int factorial(int n) {
+        if n > 1 {
+            return n * factorial(n - 1);
+        }
+        return 1;
+    }
+    // 循环版阶乘
+    int factorial_while(int x) {
+        int result;
+        int i;
+        
+        result = 1;
+        i = 1;
+        while i <= x {
+            result = result * i;
+            i = i + 1;
+        }
+        return result;
+    }
+    
+    x = 10;
+    y = 20;
+    z = 5;
+    
+    println min(x, y);      // 调用两参数版本
+    println min(x, y, z);   // 调用三参数版本
+    println factorial(5);   // 调用递归版阶乘
+    println factorial_while(5); // 调用循环版阶乘
+}
+```
+
+
+详细内容见![overview](images/overview.png)
+
 
 
 

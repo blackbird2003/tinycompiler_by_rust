@@ -400,3 +400,29 @@ impl fmt::Display for Type {
     }
 }
 
+/*
+An example:
+#[test]
+fn parse_expr_precedence() {
+    let src = r#"main() {
+        int x;
+        int f(int x) {
+            int y;
+            y = x + 1 * 2;
+            return y;
+        }
+        x = f(3) + 1;
+        println x;
+    }
+    "#;
+    let lexer = WendLexer::new();
+    let tokens = lexer.tokenize(src).unwrap();
+    let parser = WendParser::new();
+    let mut ast = parser.parse(tokens).unwrap();
+    decorate(&mut ast);
+    println!("{:?}", ast);
+}
+The output AST:
+Function { name: "main", args: [], var: [Var { name: "x", deco: {"type": Ty(Int), "scope": Int(0), "lineno": Int(1), "offset": Int(0)} }], fun: [Function { name: "f", args: [Var { name: "x", deco: {"offset": Int(0), "scope": Int(2), "lineno": Int(2), "type": Ty(Int)} }], var: [Var { name: "y", deco: {"type": Ty(Int), "scope": Int(2), "lineno": Int(3), "offset": Int(1)} }], fun: [], body: [Assign(Assign { name: "y", expr: ArithOp(ArithOp { op: "+", left: Var(Var { name: "x", deco: {"lineno": Int(2), "type": Ty(Int), "scope": Int(2), "offset": Int(0)} }), right: ArithOp(ArithOp { op: "*", left: Integer(Integer { value: 1, deco: {"lineno": Int(4), "type": Ty(Int)} }), right: Integer(Integer { value: 2, deco: {"lineno": Int(4), "type": Ty(Int)} }), deco: {"type": Ty(Int), "lineno": Int(4)} }), deco: {"lineno": Int(4), "type": Ty(Int)} }), deco: {"scope": Int(2), "lineno": Int(3), "type": Ty(Int), "offset": Int(1)} }), Return(Return { expr: Some(Var(Var { name: "y", deco: {"lineno": Int(3), "type": Ty(Int), "scope": Int(2), "offset": Int(1)} })), deco: {"lineno": Int(5)} })], deco: {"lineno": Int(2), "label": Str("f_uniqstr3"), "type": Ty(Int), "scope": Int(2), "var_cnt": Int(2)} }], body: [Assign(Assign { name: "x", expr: ArithOp(ArithOp { op: "+", left: FunCall(FunCall { name: "f", args: [Integer(Integer { value: 3, deco: {"type": Ty(Int), "lineno": Int(7)} })], deco: {"lineno": Int(2), "scope": Int(2), "type": Ty(Int), "var_cnt": Int(2), "label": Str("f_uniqstr3")} }), right: Integer(Integer { value: 1, deco: {"lineno": Int(7), "type": Ty(Int)} }), deco: {"lineno": Int(7), "type": Ty(Int)} }), deco: {"lineno": Int(1), "type": Ty(Int), "offset": Int(0), "scope": Int(0)} }), Print(Print { expr: Var(Var { name: "x", deco: {"offset": Int(0), "scope": Int(0), "lineno": Int(1), "type": Ty(Int)} }), newline: true, deco: {"lineno": Int(8)} })], deco: {"var_cnt": Int(1), "type": Ty(Void), "strings": StringSet({}), "lineno": Int(0), "scope": Int(0), "scope_cnt": Int(3), "label": Str("main_uniqstr4")} }
+*/
+

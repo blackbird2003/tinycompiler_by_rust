@@ -1,0 +1,51 @@
+main() {
+    int x;
+    int y;
+    int z;
+    
+
+    int min(int x, int y) {
+        if x < y {
+            return x;
+        }
+        return y;
+    }
+    // 重载函数
+    int min(int x, int y, int z) {
+        int temp;
+        temp = min(x, y);  // 调用两参数版本
+        if temp < z {
+            return temp;
+        }
+        return z;
+    }
+    //递归版阶乘
+    int factorial(int n) {
+        if n > 1 {
+            return n * factorial(n - 1);
+        }
+        return 1;
+    }
+    // 循环版阶乘
+    int factorial_while(int x) {
+        int result;
+        int i;
+        
+        result = 1;
+        i = 1;
+        while i <= x {
+            result = result * i;
+            i = i + 1;
+        }
+        return result;
+    }
+    
+    x = 10;
+    y = 20;
+    z = 5;
+    
+    println min(x, y);      // 调用两参数版本
+    println min(x, y, z);   // 调用三参数版本
+    println factorial(5);   // 调用递归版阶乘
+    println factorial_while(5); // 调用循环版阶乘
+}
