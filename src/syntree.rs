@@ -250,14 +250,12 @@ impl IfThenElse {
 // ----- expressions -----
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Expr {
-    ArithOp(ArithOp),
-    LogicOp(LogicOp),
-    Integer(Integer),
-    Boolean(Boolean),
-    StringLit(StringLit),
-    Var(Var),
-    FunCall(FunCall),
+pub enum Expr { //表达式
+    ArithOp(ArithOp),LogicOp(LogicOp),//运算
+    Integer(Integer),Boolean(Boolean),//字面值
+    StringLit(StringLit), //字符串字面值
+    Var(Var),   //变量
+    FunCall(FunCall), //函数调用(作为右值时)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -284,8 +282,7 @@ impl ArithOp {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LogicOp {
     pub op: String,
-    pub left: Box<Expr>,
-    pub right: Box<Expr>,
+    pub left: Box<Expr>, pub right: Box<Expr>,
     pub deco: Deco,
 }
 

@@ -1,180 +1,266 @@
-﻿> 要求:
->
-> - 编译器同样是重要的系统软件，它能够将我们编写的⾼级源代码转换成贴近底层的⽬标代码，本选课即为利⽤ Rust 实现⼀个简单语⾔的编译器。1> . 你可以⾃定义实现的语⾔，但它⾄少应该具有基本的数据类型、变量声明、函数声明、循环、条件判断等基本语法。
->
-> -  实现的编译器⾄少应该具有语法分析和代码⽣成这两部分。
-> -  在代码⽣成中，你可以选择基于 LLVM 的技术将源代码编译成⽬标⽂件，或者类似于 Java,Python 等语⾔的字节码并实现⼀个虚拟机来执⾏它。
-> 
-> - 参考资料：
-> Compiler Book,
-> Lox implementation in RustStanford Compiler Course
+# TinyCompiler By Rust  
+——Rust 实现的极简编译器  
 
-目标:实现简化版C语言(称为wend)的编译器,包含lexer/parser/analyzer/assembly generate四个主要的组件以及相关的数据结构(语法树、符号表、汇编生成模板)。
+---
 
+## 目录  
 
-参考资料:
+1. [项目简介](#项目简介)  
+2. [基础组件](#基础组件)  
+3. [语义分析](#语义分析)  
+4. [汇编生成](#汇编生成)  
+5. [测试](#测试)  
+6. [总结](#总结)  
 
-- Tiny Compiler ssloy.github.io/tinycompiler/ 一个用Python语言实现Wend编译器的教程
-- How to Develop a Compiler (青木峰郎 著) 用Java实现Cb(也是一个简化版C语言)编译器的教程
+---
 
+## How to run
 
-How to run:
 ```
-# 生成x86汇编 out.s
-cargo run -- ./test-programs/example/example.wend 
-# 运行
+xxx# cargo run -- ./test-programs/simple/eight-queens.wend
+
+Assembly code generated in out.s! Please run it by the following command:
 as --march=i386 --32 -o out.o out.s && ld -m elf_i386 out.o -o out && ./out
+
+xxx# as --march=i386 --32 -o out.o out.s && ld -m elf_i386 out.o -o out && ./out
+
+Q.......
+......Q.
+....Q...
+.......Q
+.Q......
+...Q....
+.....Q..
+..Q.....
 ```
 
+## 项目简介  
 
+### 参考项目：  
 
-实现顺序: lexer & syntree -> parser -> analyzer(with symtable) -> asm_generate (with asm templetes) -> main
+- **TinyCompiler** https://github.com/ssloy/tinycompiler  
+  - 一个使用 Python 编写的极简编译器，总行数约 500 行  
+  - 没有依赖任何 Python 第三方库，实现从源代码（Wend，一种语法与 C 类似的简单语言）到生成 32 位 GNU 汇编的完整流程  
+    - 包含词法分析、语法分析、语义分析、汇编生成等主要模块  
+    - 作者编写了循序渐进、有趣的教程，即使没有学过编译原理的人也能理解  
+
+### 项目目标：  
+
+- 使用 Rust 语言复现 TinyCompiler 的所有功能，如有时间，拓展更多功能  
+- 学习基础的编译原理、Rust 语言，以及如何利用 LLM 编写逻辑复杂的代码并调试  
+
+### 基本结构  
+
+**组件：**  
+1. Lexer  
+2. Parser  
+3. Analyzer  
+4. Asm_Generator  
+
+**数据流：**  
+源码 → Tokens → AST → 带作用域信息的 AST → 汇编  
 ![overview](images/overview.png)
 
-# 目标语言简介
-Wend是一种结构化的、简化版的C语言，与C语言的主要区别如下：
+```rust
+let src = fs::read_to_string(src_path).unwrap();
 
-1. **强制入口点**：程序的唯一入口必须是`main()`函数。程序所有内容定义在`main()`中，main外没有全局变量、函数等内容。
-2. **嵌套函数**：函数内可以定义嵌套函数。所有函数必须定义在`main()`函数内部。允许函数递归和函数重载。
-3. **严格顺序**：函数体内部必须按照 **局部变量声明 → 嵌套函数定义 → 可执行语句** 的顺序组织代码（类似于C89）。
-4. **变量作用域规则**：每个函数(不包括子函数区域)对应一个作用域，局部变量在当前函数和子函数的作用域中有效。子函数在引用一个变量时，首先在自身作用域中查找，如果找不到再逐层向外查找。同一个作用域中不能定义重名变量,不同的作用域可以有重名变量。
-5. **其他限制**：只有int和bool变量，以及int,bool和string三种字面量。系统提供print和println两个函数，能够打印int和string。流程控制仅支持if、else和while循环。
+mod syntree;
+mod lexer;
+mod parser;
+mod analyzer;
+mod asm_generate;
 
-示例程序:
+// 1. Lexer: Transform source code into tokens
+let lexer = WendLexer::new();
+let tokens = lexer.tokenize(&src).unwrap();
+
+// 2. Parser: Transform tokens into AST according to given grammar
+let parser = WendParser::new();
+let mut ast = parser.parse(tokens).unwrap();
+
+// 3. Analyzer: Analyze variables and functions and decorate AST node accordingly
+decorate(&mut ast);
+
+// 4. Assembly Generator: Generate assembly code from decorated AST
+let asm_code = asm_generate(&ast);
+fs::write("out.s", asm_code).unwrap();
+
+println!(
+    "Assembly code generated in out.s! Please run it by the following command: \
+    as --march=i386 --32 -o out.o out.s && ld -m elf_i386 out.o -o out && ./out"
+);
 ```
-main() {
-    int x;
-    int y;
-    int z;
-    
 
-    int min(int x, int y) {
-        if x < y {
-            return x;
-        }
+### 目标语言 Wend 简介  
+
+Wend 语言的基本语法与 C 语言相似，关键区别如下：  
+
+> **强制入口**：程序的唯一入口必须是 `main()` 函数。所有函数和变量必须定义在 `main()` 内部。  
+
+> **嵌套函数**：函数内可以定义子函数（所有自定义函数都是 `main()` 的子函数）。允许函数递归和函数重载。  
+
+> **严格顺序**：函数必须按照 **局部变量声明 → 子函数定义 → 可执行语句** 的顺序组织代码（每部分均可为空）。  
+
+> **变量作用域规则**：  
+> - 每个函数对应一个作用域，函数的局部变量作用于该作用域（`main` 的局部变量相当于全局变量）  
+> - 子函数在引用一个变量时，首先在自身作用域中查找，如果找不到再逐层向外查找  
+> - 同一个作用域中不能定义重名变量，不同的作用域的变量可以重名  
+
+> **其他限制**：  
+> - 只有 `int` 和 `bool` 变量，以及 `int`、`bool` 和 `string` 三种字面量。没有数组和浮点数  
+> - 提供 `print` 和 `println` 语句，能够打印 `int`、`bool` 和 `string`  
+> - 流程控制仅支持 `if`、`else` 和 `while` 循环  
+
+### 示例程序  
+
+```c
+main() {
+    int x; int y; int z;
+
+    int min(int x, int y) { // 两个数min
+        if x < y { return x; }
         return y;
     }
-    // 重载函数
+
     int min(int x, int y, int z) {
-        int temp;
-        temp = min(x, y);  // 调用两参数版本
-        if temp < z {
-            return temp;
-        }
+        int temp; // 三个数min
+        temp = min(x, y);
+        if temp < z { return temp; }
         return z;
     }
-    //递归版阶乘
-    int factorial(int n) {
-        if n > 1 {
-            return n * factorial(n - 1);
-        }
+
+    int factorial(int n) { // 递归版阶乘
+        if n > 1 { return n * factorial(n - 1); }
         return 1;
     }
-    // 循环版阶乘
-    int factorial_while(int x) {
-        int result;
-        int i;
-        
-        result = 1;
-        i = 1;
+
+    int factorial_while(int x) { // 循环版阶乘
+        int result; int i;
+        result = 1; i = 1;
         while i <= x {
             result = result * i;
             i = i + 1;
         }
         return result;
     }
-    
-    x = 10;
-    y = 20;
-    z = 5;
-    
-    println min(x, y);      // 调用两参数版本
-    println min(x, y, z);   // 调用三参数版本
-    println factorial(5);   // 调用递归版阶乘
+
+    x = 10; y = 20; z = 5;
+    println min(x, y); // 调用两参数版本
+    println min(x, y, z); // 调用三参数版本
+    println factorial(5); // 调用递归版阶乘
     println factorial_while(5); // 调用循环版阶乘
 }
 ```
 
+**运行结果：**  
+```
+10
+5
+120
+120
+```
 
-详细内容见![overview](images/overview.png)
+---
 
+## 基础组件  
 
-
-
-
-# 词法分析 (Lexer)
-Lexer本质上是一个状态机，把输入的字符串转化成一系列Tokens。
-
-Token的定义是(token_type, value)。在编译器中，增加行号用于代码生成。
+### 数据结构（变量、表达式、语句、函数、AST 节点、装饰字典）  
 
 ```rust
-pub struct Token {
-    pub token_type: String,
-    pub value: String,
-    pub lineno: usize,
+pub struct Var {
+    pub name: String,
+    pub deco: Deco,
 }
+
+pub struct LogicOp {
+    pub op: String,
+    pub left: Box<Expr>,
+    pub right: Box<Expr>,
+    pub deco: Deco,
+}
+
+pub enum Expr {
+    ArithOp(ArithOp),
+    LogicOp(LogicOp),
+    Integer(Integer),
+    Boolean(Boolean),
+    StringLit(StringLit),
+    Var(Var),
+    FunCall(FunCall),
+}
+
+pub enum Stmt {
+    Print(Print),
+    Return(Return),
+    Assign(Assign),
+    While(While),
+    IfThenElse(IfThenElse),
+    FunCall(FunCall),
+}
+
+pub struct Function {
+    pub name: String,
+    pub args: Vec<Var>,
+    pub var: Vec<Var>,
+    pub fun: Vec<Function>,
+    pub body: Vec<Stmt>,
+    pub deco: Deco,
+}
+
+pub enum DecoValue {
+    Int(i64),
+    Bool(bool),
+    Str(String),
+    Ty(Type),
+    StringSet(HashSet<String>),
+}
+
+pub type Deco = HashMap<String, DecoValue>;
 ```
 
-按照下面这张图去实现即可
-![lexer](images/lexer.png)
+### Lexer（词法分析）  
 
-# Syntree
-我们要定义一个语法树。例如,对于下面这个实现开根号的函数(这不是我们要实现的最终语言)
+词法分析器负责将源代码转换为 Token 序列。通过状态机实现。  
 
-```c
-fun main() {
-    // square root of a fixed-point number
-    // stored in a 32 bit integer variable, shift is the precision
+![alt text](images/lexer.png)
 
-    fun sqrt(n:int, shift:int) : int {
-        var x:int;
-        var x_old:int;
-        var n_one:int;
+### Parser（语法分析）  
 
-        if n > 2147483647/shift { // pay attention to potential overflows
-            return 2 * sqrt(n / 4, shift);
-        }
-        x = shift; // initial guess 1.0, can do better, but oh well
-        n_one = n * shift; // need to compensate for fixp division
-        while true {
-            x_old = x;
-            x = (x + n_one / x) / 2;
-            if abs(x - x_old) <= 1 {
-                return x;
-            }
-        }
-    }
+**语法分析的任务：**  
+- 判断一系列 Token 组成的变量、语句和函数是否符合语法规则  
+- 如果符合，则构建出相应的语法树  
 
-    fun abs(x:int) : int {
-        if x < 0 {
-            return -x;
-        } else {
-            return x;
-        }
-    }
+**Wend 语言的语法规则：共 49 条**  
+- 例1：变量声明：`TYPE ID`（如 `int x`）  
+  `Rule { lhs: "var", rhs: &["TYPE", "ID"] }`  
+- 例2：参数列表：  
+  ```rust
+  Rule { lhs: "param_list", rhs: &["var"] },
+  Rule { lhs: "param_list", rhs: &[] },
+  Rule { lhs: "param_list", rhs: &["param_list", "COMMA", "var"] },
+  ```  
+- 例3：函数声明：  
+  ```rust
+  Rule { lhs: "fun", rhs: &["fun_type", "ID", "LPAREN", "param_list", "RPAREN", "BEGIN", "var_list", "fun_list", "statement_list", "END"] },
+  ```
 
-    // 25735 is approximately equal to pi * 8192;
-    // expected value of the output is sqrt(pi) * 8192 approx 14519
+**运算优先级的实现：**  
+- 把不同优先级的运算拆成不同非终结符，分层解析  
+- 从低到高：`expr → conjunction → literal → comparand → addend → term → factor → atom`  
+- 语法规则中，上层只能组合下层，从而保证优先级顺序  
+- 最低优先级：`||`（在 `expr` 层）  
+- `&&`（在 `conjunction` 层）  
+- `!`（在 `literal` 层）  
+- 比较运算 `== != < <=` 等在 `comparand` 层  
+- 加减在 `addend` 层  
+- 乘除、取模在 `term` 层  
+- 一元 `+ / -` 在 `factor` 层  
+- 括号与变量同属 `atom` 层，可以将一个表达式强行变成 `atom`（`atom → "(" ID ")"`），实现最高优先级  
 
-    println sqrt(25735, 8192);
-}
-```
-它的语法树应该是
-
-![syntree](images/syntree.png)
-
-语法树是对程序的一种抽象，这种抽象与语言无关，因此我们通过解析一种语言得到语法树后，可以通过遍历语法树生成另一种语言的代码，包括汇编代码。
-
-
-
-# 语法分析 (Parser)
-
-Parser的作用是
-
-- 判断一系列Token组成的语句是否符合语法规则
-- 如果符合，则构建出相应的语法树
-
-这里，我们使用一种实现简单、功能强大(支持任何上下文无关文法，包括歧义文法)的Earley Parser, 它能够很好地支持类似C语言的TYPE ID式声明。
+**Earley Parser：**  
+- 优点：简单，支持任意上下文无关文法，可以直接解析 C 风格的语法（如 `TYPE ID` 定义变量）  
+- 缺点：效率较低，最坏时间复杂度为 O(N³)  
+- 解析时记录推导历史（`prev` 指针），通过沿 `prev` 回溯并按产生式顺序归约，可直接在归约过程中构造 AST  
 
 
 Earley 解析器以输入位置为阶段进行工作。设输入词法单元序列为 $t_0 t_1 \ldots t_{n-1}$。对每个输入位置 $j \in [0 \ldots n]$，算法维护一个集合 $J_j$，其中的元素称为 Earley。 在任意 $J_j$ 中，相同的 Earley 项至多出现一次。
@@ -240,109 +326,48 @@ procedure COMPLETER((B → γ•, x), k)
     end
 ```
 
-# 语义分析 (Analyzer)
 
-## 符号表(SymbolTable)
-python版本tinycompiler中的符号表设计
-```python
-class SymbolTable():
-    def __init__(self):
-        self.variables = [{}]     # stack of variable symbol tables
-        self.functions = [{}]     # stack of function symbol tables
-        self.ret_stack = [ None ] # stack of enclosing function symbols, useful for return statements
-        self.scope_cnt = 0        # global scope counter for the display table allocation
 
-    def add_fun(self, name, argtypes, deco):  # a function can be identified by its name and a list of argument types, e.g.
-        signature = (name, *argtypes)         # fun foo(x:bool, y:int) : int {...} has ('foo',Type.BOOL,Type.INT) signature
-        if signature in self.functions[-1]:
-            raise Exception('Double declaration of the function %s %s' % (signature[0], signature[1:]))
-        self.functions[-1][signature] = deco
-        deco['scope'] = self.scope_cnt # id for the function block in the scope display table
-        self.scope_cnt += 1
+---
 
-    def add_var(self, name, deco):
-        if name in self.variables[-1]:
-            raise Exception('Double declaration of the variable %s' % name)
-        self.variables[-1][name] = deco
-        deco['scope']  = self.ret_stack[-1]['scope']   # pointer to the display entry
-        deco['offset'] = self.ret_stack[-1]['var_cnt'] # id of the variable in the corresponding stack frame
-        self.ret_stack[-1]['var_cnt'] += 1
+## 语义分析  
 
-    def push_scope(self, deco):
-        self.variables.append({})
-        self.functions.append({})
-        self.ret_stack.append(deco)
-        deco['var_cnt'] = 0 # reset the per scope variable counter
-
-    def pop_scope(self):
-        self.variables.pop()
-        self.functions.pop()
-        self.ret_stack.pop()
-
-    def find_var(self, name):
-        for i in reversed(range(len(self.variables))):
-            if name in self.variables[i]:
-                return self.variables[i][name]
-        raise Exception('No declaration for the variable %s' % name)
-
-    def find_fun(self, name, argtypes):
-        signature = (name, *argtypes)
-        for i in reversed(range(len(self.functions))):
-            if signature in self.functions[i]:
-                return self.functions[i][signature]
-        raise Exception('No declaration for the function %s' % signature[0], signature[1:])
-```
-SymbolTable实际上是一个符号表的栈，每个作用域有各自的符号表，包括变量的符号表和函数的符号表。
-
-我们实现的语言约定下面的语法：
-fun →
-    fun_type ID '(' param_list ')' '{'
-        var_list
-        fun_list
-        statement_list
-    '}'
-即，在一个函数中，必须先声明所有的局部变量，然后声明所有的嵌套函数，最后才能开始写具体的语句。这会为parser个analyzer带来极大的便利。
-我们为每一个scope(作用域)分配了id。这些声明的变量与函数参数共同构成了属于这个作用域的变量，它们都有各自的变量id，如下图所示。
+### 符号表（Symbol Table）与作用域分析 
 
 ![symtable](images/symtable.png)
 
+- 每个作用域（scope）都有 `scope_id`、`var_cnt`、变量表和函数表。每个变量有 `var_id`  
+- 遍历 AST 时，用栈维护全局符号表（实现 `add_var`、`push_scope`、`pop_scope`、`find_var` 操作）  
+- `find_var` 操作将分析出当前 AST 节点符号实际的 `scope_id` 和 `var_id`，将其添加到 AST 节点的 `Deco`（装饰信息）中  
 
-我们记录下每个scope的帧基址，这样，我们只需要一个scope_id加一个var_id即可确定一个变量,即：变量地址 = scope_id帧的基地址 - 偏移量(var_id * 4)
+### 作用域分析与 Display 数组构建  
 
+- 变量的地址可由 `Deco` 中的 `scope_id` 和 `var_id` 确定：  
+  `var_addr = Display[scope_id] - var_id * 4`  
+- `Display` 数组存放每个作用域（函数）的帧基址，位于汇编代码的 `.data` 段  
+- 其大小为作用域的总数量，在编译器维护符号表的过程中确定  
+- 在函数被调用时，对应的 `display[scope_id]` 被更新为当前函数栈帧地址  
+- 在函数返回时，`display[scope_id]` 恢复为调用前的值  
 
-语义分析器借助符号表，对AST进行检查，确认AST中节点变量/函数的合法性，确保没有变量和函数的未定义、重复定义等问题。如果没有问题，则能够认为代码已经“通过检查”。
+---
 
-语义分析器同时会对AST节点添加scope_id,var_id,var_cnt等信息,便于下一步生成汇编代码。
+## 汇编生成  
 
-## 显示表(Display)的作用与构建
-Display是一个全局数组，在汇编中被声明在 .data 段。其大小为作用域的总数量scope_cnt, 在语义分析的阶段确定。
-Display[scope_id]存放的就是该作用域当前活动代码的帧基址，当scope_id所对应的函数发生对其他函数的调用与返回时，Display[scope_id]会被修改和恢复，以正确定位所需的局部变量。详见下一部分的“函数调用的汇编生成”。
+### 表达式的汇编生成  
 
+- GNU 汇编中二元表达式的基本格式：`OP SRC, DST`，如 `add %ebx, %eax`  
+- 使用简单的栈机模型计算复合表达式，仅使用 `eax`、`ebx`、运行时栈（`push`、`pop`）和 `.data` 区  
+- 约定返回值（结果）存放于 `eax`  
+- 复合二元表达式计算模板：  
+  1. 计算左表达式 `a → %eax`  
+  2. `push %eax`  
+  3. 计算右表达式 `b → %eax`  
+  4. `mov %eax, %ebx`  
+  5. `pop %eax`  
+  6. `op %ebx, %eax`  
 
-# 汇编生成 (asm_generate)
+例如，对于表达式 `a + 2 * b`，在深度优先遍历 AST 的过程中展开汇编模板即可。  
 
-这一部分的作用是把经过语义分析装饰后的语法树生成汇编代码。
-
-## 表达式的汇编生成
-
-> GNU汇编的基本格式:
-> ```
-> op src,dst
-> ```
-我们使用简单的GNU x86汇编，规定函数的返回值和表达式的结果(即AST的结点值)都存储在eax寄存器中。我们希望找到一种简单、通用的表达式计算方法，**只用eax,ebx两个寄存器和一个堆栈**
-
-使用简单的栈机模型进行二元表达式(a op b)计算：
-```
-1. 计算左表达式a->%eax
-2. push %eax
-3. 计算右表达式b->%eax
-4. mov %eax, %ebx
-5. pop %eax
-6. op %ebx, %eax
-```
-对于所有表达式操作，都可以用上面的方式构造一个“汇编模板”。
-通过对语法树进行深度优先遍历并展开对每个表达式的汇编模板，即可生成函数体部分的所有汇编代码。
-例如，对于表达式a + 2 * b,可以将其转换成下列汇编代码
 ```
 move a to %eax                            \
 push(%eax)                                |
@@ -358,11 +383,34 @@ move %eax to %ebx                         |
 ```
 
 
-## 函数调用的汇编生成
+### 语句和函数的汇编生成  
 
-接下来，我们考虑如何生成函数调用的汇编。
+- 语句的汇编生成：为每一种语句（赋值、判断、循环、函数调用等）定义汇编模板，编写对应的 Rust 函数，填入信息生成汇编  
+- `print` 函数在 parser 中被解析为语句，其汇编模板通过 `syscall` 实现打印功能  
+- 函数的汇编生成：  
+  1. 递归生成所有嵌套函数的汇编代码  
+  2. 生成当前函数体内所有语句的汇编代码  
+  3. 按“函数标签 → 函数体 → ret 指令 → 嵌套函数代码”的顺序拼接  
 
-函数调用实际上隐含下面的流程
+```rust
+fn gen_fun(n: &Function) -> String {
+    let label = get_s(&n.deco, "label");
+    let mut nested = String::new();
+    for f in &n.fun {
+        nested.push_str(&gen_fun(f));
+    }
+    let mut body = String::new();
+    for s in &n.body {
+        body.push_str(&gen_stmt(s));
+    }
+    format!("{label}:\n{body}\nret\n{nested}\n")
+}
+```
+
+### 函数调用语句的汇编生成  
+
+函数调用隐含保存现场和返回的流程。下面的Python代码展示了这个流程，FunCall汇编模板实现同样的流程。
+
 ```
 def foo():
   global display,stack,eax
@@ -378,44 +426,105 @@ def foo():
     del stack[-nlocals:]
 ```
 
-同样的，我们可以将函数调用的流程写为汇编模板，进行整体替换
 
-## 汇编生成的总体流程
 
-```
-def asm_generate(n):
-    # 生成所有字符串常量的汇编代码：遍历语法树节点中的字符串常量表，
-    # 对每个(label, string)对使用'ascii'模板进行格式化，然后拼接成完整字符串段
-    strings = ''.join([templates['ascii'].format(label=label, string=string) for label,string in n.deco['strings']])
-    
-    # 计算显示表(display)的总大小：scope_cnt表示作用域数量，每个作用域指针占4字节
-    display_size = n.deco['scope_cnt']*4
-    
-    # 计算当前作用域在display表中的偏移量：scope表示当前作用域编号，乘以4得到在display数组中的字节偏移量
-    offset       = n.deco['scope']*4
-    
-    # 获取主函数的标签名：从语法树节点中提取主函数的符号标签
-    main         = n.deco['label']
-    
-    # 计算局部变量所需的空间大小
-    varsize      = len(n.var)*4
-    
-    # 递归生成所有函数的汇编代码：调用fun函数处理语法树中的函数定义，生成函数体的汇编代码
-    functions    = fun(n)
-    
-    # 使用'program'模板生成完整的汇编程序：将前面计算的所有变传递给模板进行格式化，返回最终的汇编代码字符串
-    return templates['program'].format(
-    strings=strings,
-    display_size=display_size,
-    offset=offset,
-    main=main,
-    varsize=varsize,
-    functions=functions
-)
+
+汇编模板需传入作用域相关参数，如 `var_cnt`、`scope_id` 等。  
+
+```rust
+fn gen_fun_call(n: &FunCall) -> String {
+    let mut allocargs = String::new();
+    for a in &n.args {
+        allocargs.push_str(&gen_expr(a));
+        allocargs.push_str("\tpushl %eax\n");
+    }
+    let var_cnt = get_i(&n.deco, "var_cnt");
+    let varsize = var_cnt * 4;
+    let disphead = var_cnt * 4 + (n.args.len() as i32) * 4 - 4;
+    let scope = get_i(&n.deco, "scope") * 4;
+    let funlabel = get_s(&n.deco, "label");
+    render(TEMPLATES.funcall, &[
+        ("allocargs", allocargs),
+        ("varsize", varsize.to_string()),
+        ("disphead", disphead.to_string()),
+        ("scope", scope.to_string()),
+        ("funlabel", funlabel),
+    ])
+}
 ```
 
+### 总体流程  
 
+```rust
+fn render(template: &str, items: &[(&str, String)]) -> String {
+    let mut s = template.to_string();
+    for (k, v) in items {
+        s = s.replace(&format!("{{{{{}}}}}", k), &v);
+    }
+    s
+}
 
+pub fn asm_generate(main_fun: &Function) -> String {
+    let mut strings_asm = String::new();
+    let strings = get_stringset(&main_fun.deco, "strings");
+    for (label, string) in strings {
+        strings_asm.push_str(&render(TEMPLATES.ascii, &[("label", label), ("string", escape_ascii(&string))]));
+    }
+    let display_size = get_i(&main_fun.deco, "scope_cnt") * 4;
+    let offset = get_i(&main_fun.deco, "scope") * 4;
+    let main_label = get_s(&main_fun.deco, "label");
+    let varsize = (main_fun.var.len() as i32) * 4;
+    let functions = gen_fun(main_fun);
+    render(TEMPLATES.program, &[
+        ("strings", strings_asm),
+        ("display_size", display_size.to_string()),
+        ("offset", offset.to_string()),
+        ("main", main_label),
+        ("varsize", varsize.to_string()),
+        ("functions", functions),
+    ])
+}
+```
 
+---
 
+## 测试  
+
+- TinyCompiler 原作者提供了许多有趣的 Wend 程序，可用于测试编译器的正确性  
+- 例如 `eight-queens.wend` 实现了通过深度优先搜索求解八皇后问题  
+- TinyCompiler By Rust 能够为这些程序生成正确的汇编代码，并给出预期结果  
+
+**示例测试：**  
+```
+xxx# cargo run -- ./test-programs/simple/eight-queens.wend
+
+Assembly code generated in out.s! Please run it by the following command:
+as --march=i386 --32 -o out.o out.s && ld -m elf_i386 out.o -o out && ./out
+
+xxx# as --march=i386 --32 -o out.o out.s && ld -m elf_i386 out.o -o out && ./out
+
+Q.......
+......Q.
+....Q...
+.......Q
+.Q......
+...Q....
+.....Q..
+..Q.....
+```
+
+---
+
+## 总结  
+
+- 本项目通过对 TinyCompiler 的学习和 Rust 重写，掌握了 Rust 语言的基本知识与开发流程，同时对编译原理有了更深入的理解  
+- 本项目的大部分代码由 ChatGPT 生成。面对逻辑复杂的编译器项目，LLM 无法一次生成正确的代码，需在理解原理的基础上，通过不断调试和修改完成  
+- Rust 的安全性保证了一旦程序通过编译，基本不会出现难以排查的内存错误  
+
+**局限性与未来工作：**  
+- 部分实现效率较低，例如为避免借用关系报错，很多地方使用了不必要的 `clone`  
+- `Deco` 在设计上强行模仿 Python 版本，由于 Rust 规范更严格，一些操作需要大量代码才能实现，未来可用更好的设计替代  
+- 当前编译器只实现了非常基础的功能，未来可考虑拓展浮点数、数组、编译优化等功能  
+
+---  
 
